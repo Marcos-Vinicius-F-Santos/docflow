@@ -1,0 +1,2 @@
+
+-- Initial DocFlow database schema
