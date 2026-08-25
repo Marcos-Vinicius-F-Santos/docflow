@@ -17,9 +17,13 @@ public class Document {
     @NotNull
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private DocumentStatus status;
+    private DocumentStatus status = DocumentStatus.PENDING;
+
+    @NotNull
     @Column(nullable = false)
     private String originalFilename;
+
+    @NotNull
     @Column(nullable = false)
     private String contentType;
 
@@ -30,6 +34,8 @@ public class Document {
     @NotNull
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
+
+    @NotNull
     @Column(nullable = false)
     private Instant updatedAt;
     
