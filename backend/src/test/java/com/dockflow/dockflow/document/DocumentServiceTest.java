@@ -47,8 +47,6 @@ public class DocumentServiceTest {
         assertEquals(sizeBytes, resultDocument.getSizeBytes());
         assertEquals(DocumentStatus.PENDING, resultDocument.getStatus());
 
-        //verify(documentRepository).save(org.mockito.ArgumentMatchers.any(Document.class));
-
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         
         verify(documentRepository).save(documentCaptor.capture());

@@ -27,7 +27,7 @@ class DocumentServiceIntegrationTest extends IntegrationTestBase {
     @Test
     void shouldPersistDocumentInDatabase() {
 
-        String originalFilename = "integration_test_document.txt";
+        String originalFilename = "integration_test_document.pdf";
         String contentType = "application/pdf";
         long sizeBytes = 2048;
 
