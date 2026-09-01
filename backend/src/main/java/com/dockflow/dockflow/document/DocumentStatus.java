@@ -1,6 +1,6 @@
 package com.dockflow.dockflow.document;
 
-public enum Documentstatus {
+public enum DocumentStatus {
     PENDING,
     PROCESSING,
     COMPLETED,
