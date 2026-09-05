@@ -1,6 +1,10 @@
 package com.dockflow.dockflow.document;
+import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 public class DocumentService {
@@ -21,4 +25,11 @@ public class DocumentService {
         return documentRepository.save(document);
 
     }
+
+    @Transactional(readOnly = true)
+    public Document findById(UUID id) {
+        return documentRepository.findById(id)
+                .orElseThrow(() -> new DocumentNotFoundException(id));
+    }
+
 }

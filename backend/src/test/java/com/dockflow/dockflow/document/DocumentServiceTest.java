@@ -8,6 +8,9 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
+
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
 
@@ -15,10 +18,10 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.UUID;
 
 @ExtendWith(MockitoExtension.class)
 public class DocumentServiceTest {
@@ -99,4 +102,30 @@ public class DocumentServiceTest {
 
         verify(documentRepository, never()).save(org.mockito.ArgumentMatchers.any(Document.class));
     }
+
+    @Test 
+    void shouldFindDocumentById() {
+        UUID id = UUID.randomUUID();
+        Document mockDocument = new Document("test_document.pdf", "application/pdf", 1024);
+
+        when(documentRepository.findById(id)).thenReturn(java.util.Optional.of(mockDocument));
+
+        Document foundDocument = documentService.findById(id);
+
+        assertEquals(mockDocument, foundDocument);
+
+        verify(documentRepository).findById(id);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDocumentNotFound() {
+        UUID id = UUID.randomUUID();
+
+        when(documentRepository.findById(id)).thenReturn(java.util.Optional.empty());
+
+        assertThrows(DocumentNotFoundException.class, () -> {
+            documentService.findById(id);
+        });
+    }
+
 }
