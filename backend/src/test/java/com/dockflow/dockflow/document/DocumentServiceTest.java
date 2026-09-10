@@ -19,6 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
@@ -126,6 +127,50 @@ public class DocumentServiceTest {
         assertThrows(DocumentNotFoundException.class, () -> {
             documentService.findById(id);
         });
+    }
+
+    @Test
+    void shouldCompleteDocumentOnlyAfterProcessingWithObjectReference() {
+        Document document = new Document("test_document.pdf", "application/pdf", 1024);
+
+        document.startProcessing();
+        document.markCompleted("documents/123/content");
+
+        assertEquals(DocumentStatus.COMPLETED, document.getStatus());
+        assertEquals("documents/123/content", document.getObjectKey());
+    }
+
+    @Test
+    void shouldRejectProcessingDocumentWithoutObjectReference() {
+        Document document = new Document("test_document.pdf", "application/pdf", 1024);
+        document.startProcessing();
+
+        assertThrows(IllegalArgumentException.class, () -> document.markCompleted(" "));
+        assertEquals(DocumentStatus.PROCESSING, document.getStatus());
+        assertNull(document.getObjectKey());
+    }
+
+    @Test
+    void shouldRejectConcurrentOrRepeatedProcessing() {
+        Document document = new Document("test_document.pdf", "application/pdf", 1024);
+        document.startProcessing();
+
+        assertThrows(IllegalStateException.class, document::startProcessing);
+
+        document.markCompleted("documents/123/content");
+        assertThrows(IllegalStateException.class, document::startProcessing);
+        assertThrows(IllegalStateException.class, () -> document.markCompleted("documents/456/content"));
+    }
+
+    @Test
+    void shouldPreserveFailureTransitionAndRejectTerminalMutation() {
+        Document document = new Document("test_document.pdf", "application/pdf", 1024);
+
+        document.markFailed();
+
+        assertEquals(DocumentStatus.FAILED, document.getStatus());
+        assertThrows(IllegalStateException.class, document::startProcessing);
+        assertThrows(IllegalStateException.class, document::markFailed);
     }
 
 }
