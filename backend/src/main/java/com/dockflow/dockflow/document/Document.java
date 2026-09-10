@@ -36,6 +36,13 @@ public class Document {
     @Column(nullable = false)
     private long sizeBytes;
 
+    @Column(name = "object_key")
+    private String objectKey;
+
+    @Version
+    @Column(nullable = false)
+    private long version;
+
     @NotNull
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -95,6 +102,43 @@ public class Document {
 
     public DocumentStatus getStatus() {
         return status;
+    }
+
+    public String getObjectKey() {
+        return objectKey;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void startProcessing() {
+        if (status != DocumentStatus.PENDING) {
+            throw new IllegalStateException("Only pending documents can start processing");
+        }
+
+        status = DocumentStatus.PROCESSING;
+    }
+
+    public void markCompleted(String objectKey) {
+        if (status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException("Only processing documents can be completed");
+        }
+
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalArgumentException("objectKey cannot be null or blank");
+        }
+
+        this.objectKey = objectKey;
+        status = DocumentStatus.COMPLETED;
+    }
+
+    public void markFailed() {
+        if (status != DocumentStatus.PENDING && status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException("Only pending or processing documents can fail");
+        }
+
+        status = DocumentStatus.FAILED;
     }
     
     public UUID getId() {
