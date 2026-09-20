@@ -3,11 +3,11 @@ package com.dockflow.dockflow.document.storage.minio;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
 import com.dockflow.dockflow.document.storage.DocumentStorageException.FailureType;
-import io.minio.ErrorResponseException;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
+import io.minio.errors.ErrorResponseException;
 import io.minio.messages.ErrorResponse;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import io.minio.errors.InvalidResponseException;
 import io.minio.errors.ServerException;
 import io.minio.errors.XmlParserException;
 
-public class MinioDocumentStorage {
+public class MinioDocumentStorage implements DocumentStorage {
 
     private final MinioClient client;
     private final String bucket;
@@ -82,8 +82,7 @@ public class MinioDocumentStorage {
             );
             return true;
         } catch (ErrorResponseException exception) {
-            ErrorResponse response = exception.errorResponse();
-            if (response.statusCode() == 404) {
+            if (exception.response().code() == 404) {
                 return false;
             }
             throw translate(exception);
@@ -142,7 +141,7 @@ public class MinioDocumentStorage {
     }
 
     private DocumentStorageException translate(ErrorResponseException exception) {
-        int statusCode = exception.errorResponse().statusCode();
+        int statusCode = exception.response().code();
         FailureType type = statusCode >= 500 || statusCode == 429
             ? FailureType.UNAVAILABLE
             : FailureType.REJECTED;

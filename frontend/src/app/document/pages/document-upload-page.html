@@ -1,0 +1,113 @@
+<main class="upload-page">
+  <section class="page-heading" aria-labelledby="upload-title">
+    <p class="eyebrow">DocFlow</p>
+    <h1 id="upload-title">Enviar um documento</h1>
+    <p class="page-introduction">
+      Selecione um único arquivo para registrá-lo e acompanhar o processamento assíncrono.
+    </p>
+  </section>
+
+  <mat-card class="upload-card">
+    <mat-card-content>
+      <label
+        class="drop-zone"
+        [class.is-active]="isDragActive"
+        [class.is-disabled]="uploadInProgress"
+        for="document-file-input"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <mat-icon aria-hidden="true">⇧</mat-icon>
+        <span class="drop-zone-title">Arraste um arquivo para cá</span>
+        <span class="drop-zone-hint">ou use o botão para selecionar do seu dispositivo</span>
+        <span class="drop-zone-action">Selecionar arquivo</span>
+        <input
+          #fileInput
+          id="document-file-input"
+          type="file"
+          [disabled]="uploadInProgress"
+          (change)="onFileInputChange($event)"
+        />
+      </label>
+
+      @if (selectedFile) {
+        <section class="file-review" aria-labelledby="file-review-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Revisão</p>
+              <h2 id="file-review-title">Arquivo selecionado</h2>
+            </div>
+            <button
+              mat-icon-button
+              type="button"
+              aria-label="Remover arquivo selecionado"
+              [disabled]="uploadInProgress"
+              (click)="clearFile()"
+            >
+              <mat-icon aria-hidden="true">×</mat-icon>
+            </button>
+          </div>
+
+          <dl class="file-metadata">
+            <div>
+              <dt>Nome</dt>
+              <dd>{{ selectedFile.name || 'Não informado' }}</dd>
+            </div>
+            <div>
+              <dt>Tipo informado</dt>
+              <dd>{{ selectedFile.type || 'Não informado' }}</dd>
+            </div>
+            <div>
+              <dt>Tamanho</dt>
+              <dd>{{ formatFileSize(selectedFile.size) }}</dd>
+            </div>
+          </dl>
+        </section>
+      }
+
+      @if (validationError) {
+        <p class="feedback feedback-error" role="alert" aria-live="assertive">
+          <mat-icon aria-hidden="true">!</mat-icon>
+          <span>{{ validationError }}</span>
+        </p>
+      }
+
+      @if (uploadError) {
+        <section class="feedback feedback-error" role="alert" aria-live="assertive">
+          <mat-icon aria-hidden="true">!</mat-icon>
+          <div>
+            <strong>{{ uploadError.message }}</strong>
+            @if (uploadError.kind === 'operational') {
+              <p>Você pode tentar enviar novamente de forma manual.</p>
+            }
+          </div>
+        </section>
+      }
+
+      @if (uploadInProgress) {
+        <section class="upload-progress" aria-live="polite" aria-busy="true">
+          <div class="progress-label">
+            <span>Enviando arquivo</span>
+            <span>{{ uploadProgress }}%</span>
+          </div>
+          <mat-progress-bar mode="determinate" [value]="uploadProgress" />
+          <p>Não feche esta página enquanto o envio estiver em andamento.</p>
+        </section>
+      }
+
+      <div class="form-actions">
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          [disabled]="!selectedFile || !!validationError || uploadInProgress"
+          (click)="submit()"
+        >
+          <mat-icon aria-hidden="true">↑</mat-icon>
+          {{ uploadError ? 'Tentar enviar novamente' : 'Enviar documento' }}
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</main>

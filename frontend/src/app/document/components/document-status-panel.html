@@ -1,0 +1,48 @@
+<mat-card [class]="'status-card ' + statusClass(document.status)">
+  <mat-card-content>
+    <div class="status-heading" role="status" aria-live="polite">
+      <div class="status-icon" aria-hidden="true">
+        <mat-icon>{{ statusIcons[document.status] }}</mat-icon>
+      </div>
+      <div>
+        <p class="eyebrow">Estado atual</p>
+        <h2>{{ statusLabels[document.status] }}</h2>
+        <p class="status-description">{{ statusDescriptions[document.status] }}</p>
+      </div>
+    </div>
+
+    <ol class="status-timeline" aria-label="Etapas do processamento">
+      @for (step of statusSteps; track step) {
+        <li
+          [class.is-current]="isCurrent(step)"
+          [class.is-reached]="isReached(step)"
+          [class.is-failed]="document.status === 'FAILED' && step === 'FAILED'"
+          [attr.aria-current]="isCurrent(step) ? 'step' : null"
+        >
+          <span class="timeline-marker" aria-hidden="true">{{ $index + 1 }}</span>
+          <span>{{ statusLabels[step] }}</span>
+        </li>
+      }
+    </ol>
+
+    @if (document.status === 'PENDING' || document.status === 'PROCESSING') {
+      <p class="status-note">
+        O processamento é assíncrono. Esta tela consulta o backend automaticamente a cada 3
+        segundos.
+      </p>
+    }
+
+    @if (document.status === 'COMPLETED') {
+      <p class="status-note status-note-success">
+        O documento está armazenado no destino final confirmado pelo backend.
+      </p>
+    }
+
+    @if (document.status === 'FAILED') {
+      <p class="status-note status-note-error">
+        Não há reprocessamento do documento nesta API. Você pode consultar novamente ou fazer um
+        novo upload.
+      </p>
+    }
+  </mat-card-content>
+</mat-card>

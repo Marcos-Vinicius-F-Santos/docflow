@@ -1,0 +1,149 @@
+:host {
+  display: block;
+  margin-top: 1rem;
+}
+
+.status-card {
+  border-radius: 1.25rem;
+  border-inline-start: 0.4rem solid var(--mat-sys-outline);
+}
+
+.status-card.status-pending {
+  border-inline-start-color: var(--mat-sys-tertiary);
+}
+
+.status-card.status-processing {
+  border-inline-start-color: var(--mat-sys-primary);
+}
+
+.status-card.status-completed {
+  border-inline-start-color: var(--mat-sys-primary);
+}
+
+.status-card.status-failed {
+  border-inline-start-color: var(--mat-sys-error);
+}
+
+.status-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.status-icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mat-sys-surface-container-high);
+}
+
+.status-icon mat-icon {
+  color: var(--mat-sys-primary);
+}
+
+.status-failed .status-icon mat-icon {
+  color: var(--mat-sys-error);
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--mat-sys-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+
+.status-description {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  line-height: 1.5;
+}
+
+.status-timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0;
+  margin: 2rem 0 0;
+  list-style: none;
+}
+
+.status-timeline li {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.timeline-marker {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 50%;
+  background: var(--mat-sys-surface);
+  font-weight: 700;
+}
+
+.status-timeline li.is-reached {
+  color: var(--mat-sys-on-surface);
+  font-weight: 700;
+}
+
+.status-timeline li.is-reached .timeline-marker {
+  border-color: var(--mat-sys-primary);
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.status-timeline li.is-current .timeline-marker {
+  outline: 3px solid color-mix(in srgb, var(--mat-sys-primary) 25%, transparent);
+}
+
+.status-timeline li.is-failed {
+  color: var(--mat-sys-error);
+}
+
+.status-timeline li.is-failed .timeline-marker {
+  border-color: var(--mat-sys-error);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.status-note {
+  margin: 1.5rem 0 0;
+  padding: 0.9rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+  line-height: 1.5;
+}
+
+.status-note-success {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.status-note-error {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+@media (max-width: 38rem) {
+  .status-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 1rem;
+  }
+}

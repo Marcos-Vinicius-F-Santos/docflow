@@ -1,0 +1,95 @@
+<main class="detail-page">
+  <button class="back-link" mat-button type="button" (click)="openNewUpload()">
+    <mat-icon aria-hidden="true">←</mat-icon>
+    Novo documento
+  </button>
+
+  <section class="page-heading" aria-labelledby="detail-title">
+    <p class="eyebrow">Acompanhamento</p>
+    <h1 id="detail-title">Status do documento</h1>
+    <p class="document-id-label">
+      Identificador:
+      <code>{{ documentId }}</code>
+    </p>
+  </section>
+
+  @if (isLoading && !document) {
+    <section class="loading-state" aria-live="polite" aria-busy="true">
+      <mat-spinner diameter="40" />
+      <p>Consultando o estado atual no backend...</p>
+    </section>
+  }
+
+  @if (error) {
+    <section class="detail-error" role="alert" aria-live="assertive">
+      <mat-icon aria-hidden="true">
+        {{ error.kind === 'not-found' ? '?' : '!' }}
+      </mat-icon>
+      <div>
+        <h2>{{ error.message }}</h2>
+        @if (error.kind === 'not-found') {
+          <p>Esse identificador não corresponde a um documento disponível no backend.</p>
+        } @else {
+          <p>O identificador foi preservado. Você pode tentar a consulta novamente.</p>
+        }
+        <div class="detail-actions">
+          <button mat-flat-button color="primary" type="button" (click)="refresh()">
+            <mat-icon aria-hidden="true">↻</mat-icon>
+            Tentar consulta novamente
+          </button>
+          <button mat-stroked-button type="button" (click)="openNewUpload()">Novo documento</button>
+        </div>
+      </div>
+    </section>
+  }
+
+  @if (document) {
+    <section class="document-card" aria-labelledby="metadata-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Metadados conhecidos</p>
+          <h2 id="metadata-title">{{ document.originalFilename }}</h2>
+        </div>
+        <button mat-stroked-button type="button" [disabled]="isRefreshing" (click)="refresh()">
+          <mat-icon aria-hidden="true">↻</mat-icon>
+          Atualizar agora
+        </button>
+      </div>
+
+      <dl class="document-metadata">
+        <div>
+          <dt>Tipo</dt>
+          <dd>{{ document.contentType }}</dd>
+        </div>
+        <div>
+          <dt>Tamanho</dt>
+          <dd>{{ formatFileSize(document.sizeBytes) }}</dd>
+        </div>
+        <div>
+          <dt>Criado em</dt>
+          <dd>{{ formatDate(document.createdAt) }}</dd>
+        </div>
+        <div>
+          <dt>Atualizado em</dt>
+          <dd>{{ formatDate(document.updatedAt) }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <app-document-status-panel [document]="document" />
+
+    @if (document.status === 'FAILED') {
+      <section class="next-action" aria-labelledby="failed-action-title">
+        <div>
+          <p class="eyebrow">Próximo passo</p>
+          <h2 id="failed-action-title">O processamento não foi concluído</h2>
+          <p>
+            Você pode consultar novamente o backend ou iniciar um novo upload. Esta interface não
+            oferece reprocessamento do documento existente.
+          </p>
+        </div>
+        <button mat-stroked-button type="button" (click)="openNewUpload()">Novo documento</button>
+      </section>
+    }
+  }
+</main>

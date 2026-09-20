@@ -4,19 +4,19 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.data.domain.Persistable;
 
 import java.util.UUID;
 import java.time.Instant;
-
-import org.hibernate.annotations.UuidGenerator;
+import java.time.Duration;
 
 @Entity 
 @Table(name = "documents")
 
-public class Document {
+public class Document implements Persistable<UUID> {
+    public static final Duration PROCESSING_LEASE = Duration.ofSeconds(10);
+
     @Id
-    @GeneratedValue
-    @UuidGenerator
     private UUID id;
 
     @NotNull
@@ -39,9 +39,18 @@ public class Document {
     @Column(name = "object_key")
     private String objectKey;
 
+    @Column(name = "reconciliation_attempts", nullable = false)
+    private long reconciliationAttempts;
+
+    @Column(name = "reconciliation_next_attempt_at")
+    private Instant reconciliationNextAttemptAt;
+
     @Version
     @Column(nullable = false)
     private long version;
+
+    @Transient
+    private boolean newEntity = true;
 
     @NotNull
     @Column(nullable = false, updatable = false)
@@ -69,6 +78,7 @@ public class Document {
             throw new IllegalArgumentException("contentType cannot be null or blank");
         }
         
+        this.id = UUID.randomUUID();
         this.originalFilename = originalFilename;
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
@@ -76,7 +86,21 @@ public class Document {
 
     }
 
-     @PrePersist
+    /**
+     * Creates a document with the identifier already allocated for staging.
+     * The existing constructor remains the default path for current callers.
+     */
+    public Document(UUID id, String originalFilename, String contentType, long sizeBytes) {
+        this(originalFilename, contentType, sizeBytes);
+
+        if (id == null) {
+            throw new IllegalArgumentException("id cannot be null");
+        }
+
+        this.id = id;
+    }
+
+    @PrePersist
     private void onCreate() {
         Instant now = Instant.now();
         this.createdAt = now;
@@ -86,6 +110,21 @@ public class Document {
     @PreUpdate
     private void onUpdate() {
         this.updatedAt = Instant.now();
+    }
+
+    @PostLoad
+    private void onLoad() {
+        this.newEntity = false;
+    }
+
+    @PostPersist
+    private void onPersist() {
+        this.newEntity = false;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
     }
 
     public String getOriginalFilename() {
@@ -108,6 +147,70 @@ public class Document {
         return objectKey;
     }
 
+    public long getReconciliationAttempts() {
+        return reconciliationAttempts;
+    }
+
+    /** Registers the deterministic final-storage reference before processing can be uncertain. */
+    public void registerStorageObjectKey(String objectKey) {
+        if (status != DocumentStatus.PENDING && status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException("Only pending or processing documents can register an objectKey");
+        }
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalArgumentException("objectKey cannot be null or blank");
+        }
+        if (this.objectKey != null && !this.objectKey.equals(objectKey)) {
+            throw new IllegalStateException("The document objectKey cannot be changed");
+        }
+
+        this.objectKey = objectKey;
+    }
+
+    public long registerReconciliationAttempt() {
+        if (status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException(
+                "Only processing documents can be reconciled"
+            );
+        }
+
+        reconciliationAttempts++;
+        return reconciliationAttempts;
+    }
+
+    /** Starts a claimed reconciliation attempt using the persisted storage reference. */
+    public long beginReconciliationAttempt() {
+        if (status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException("Only processing documents can be reconciled");
+        }
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalStateException("A processing document must have an objectKey to be reconciled");
+        }
+        if (reconciliationAttempts >= 5) {
+            throw new IllegalStateException("The reconciliation attempt limit has been reached");
+        }
+
+        reconciliationNextAttemptAt = null;
+        return ++reconciliationAttempts;
+    }
+
+    public Instant getReconciliationNextAttemptAt() {
+        return reconciliationNextAttemptAt;
+    }
+
+    public void scheduleReconciliation(Instant nextAttemptAt) {
+        if (status != DocumentStatus.PROCESSING) {
+            throw new IllegalStateException("Only processing documents can be scheduled for reconciliation");
+        }
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalStateException("A processing document must have an objectKey to be reconciled");
+        }
+        if (nextAttemptAt == null) {
+            throw new IllegalArgumentException("nextAttemptAt cannot be null");
+        }
+
+        reconciliationNextAttemptAt = nextAttemptAt;
+    }
+
     public long getVersion() {
         return version;
     }
@@ -128,8 +231,12 @@ public class Document {
         if (objectKey == null || objectKey.isBlank()) {
             throw new IllegalArgumentException("objectKey cannot be null or blank");
         }
+        if (this.objectKey != null && !this.objectKey.equals(objectKey)) {
+            throw new IllegalStateException("The document objectKey cannot be changed");
+        }
 
         this.objectKey = objectKey;
+        this.reconciliationNextAttemptAt = null;
         status = DocumentStatus.COMPLETED;
     }
 
@@ -139,6 +246,7 @@ public class Document {
         }
 
         status = DocumentStatus.FAILED;
+        reconciliationNextAttemptAt = null;
     }
     
     public UUID getId() {
