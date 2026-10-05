@@ -7,7 +7,8 @@ public class DocumentStorageException extends RuntimeException {
     public enum FailureType {
         UNAVAILABLE(true),
         REJECTED(false),
-        RESULT_UNKNOWN(true);
+        RESULT_UNKNOWN(true),
+        NOT_FOUND(false);
 
         private final boolean retryable;
 

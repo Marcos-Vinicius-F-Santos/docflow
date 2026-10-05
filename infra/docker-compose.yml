@@ -2,30 +2,82 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set}
     ports:
       - "5432:5432"
     volumes:
       # PostgreSQL 18 mantém os dados em um diretório por versão.
       - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  volumes:
-    postgres-data:
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: docflow-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
 
-    minio:
-      image: minio/minio:latest
-      container_name: docflow-minio
-      command: server /data --console-address ":9001"
-      environment:
-        MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-        MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      ports:
-        - "9000:9000"
-        - "9001:9001"
-      volumes:
-        - minio_data:/data
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: docflow-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER must be set}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  bootstrap:
+    build:
+      context: ./bootstrap
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_MANAGEMENT_PORT: 15672
+      RABBITMQ_USER: ${RABBITMQ_USER:?RABBITMQ_USER must be set}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY must be set}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY must be set}
+      MINIO_STAGING_BUCKET: ${MINIO_STAGING_BUCKET:-docflow-staging}
+      MINIO_BUCKET: ${MINIO_BUCKET:-docflow-documents}
+      BOOTSTRAP_MAX_ATTEMPTS: ${BOOTSTRAP_MAX_ATTEMPTS:-60}
+      BOOTSTRAP_RETRY_DELAY_SECONDS: ${BOOTSTRAP_RETRY_DELAY_SECONDS:-2}
+    restart: "no"
 
 volumes:
+  postgres-data:
   minio_data:
+  rabbitmq_data:

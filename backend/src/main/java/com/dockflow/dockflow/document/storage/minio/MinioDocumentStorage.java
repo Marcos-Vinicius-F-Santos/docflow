@@ -3,11 +3,12 @@ package com.dockflow.dockflow.document.storage.minio;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
 import com.dockflow.dockflow.document.storage.DocumentStorageException.FailureType;
-import io.minio.ErrorResponseException;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
+import io.minio.errors.ErrorResponseException;
 import io.minio.messages.ErrorResponse;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import io.minio.errors.InvalidResponseException;
 import io.minio.errors.ServerException;
 import io.minio.errors.XmlParserException;
 
-public class MinioDocumentStorage {
+public class MinioDocumentStorage implements DocumentStorage {
 
     private final MinioClient client;
     private final String bucket;
@@ -72,6 +73,50 @@ public class MinioDocumentStorage {
         }
     }
 
+    @Override
+    public DocumentStorage.StoredContent open(String objectKey) {
+        try {
+            StatObjectResponse metadata = client.statObject(
+                StatObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .build()
+            );
+            InputStream content = client.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .build()
+            );
+            return new DocumentStorage.StoredContent(
+                content,
+                metadata.size(),
+                metadata.contentType()
+            );
+        } catch (ErrorResponseException exception) {
+            throw translateRead(exception);
+        } catch (InsufficientDataException | InvalidResponseException | InternalException |
+                 ServerException | XmlParserException exception) {
+            throw new DocumentStorageException(
+                FailureType.UNAVAILABLE,
+                "Object storage is unavailable",
+                exception
+            );
+        } catch (IOException exception) {
+            throw new DocumentStorageException(
+                FailureType.RESULT_UNKNOWN,
+                "Object content could not be opened",
+                exception
+            );
+        } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
+            throw new DocumentStorageException(
+                FailureType.REJECTED,
+                "Object storage rejected the operation",
+                exception
+            );
+        }
+    }
+
     public boolean exists(String objectKey) {
         try {
             client.statObject(
@@ -82,8 +127,7 @@ public class MinioDocumentStorage {
             );
             return true;
         } catch (ErrorResponseException exception) {
-            ErrorResponse response = exception.errorResponse();
-            if (response.statusCode() == 404) {
+            if (exception.response().code() == 404) {
                 return false;
             }
             throw translate(exception);
@@ -142,7 +186,7 @@ public class MinioDocumentStorage {
     }
 
     private DocumentStorageException translate(ErrorResponseException exception) {
-        int statusCode = exception.errorResponse().statusCode();
+        int statusCode = exception.response().code();
         FailureType type = statusCode >= 500 || statusCode == 429
             ? FailureType.UNAVAILABLE
             : FailureType.REJECTED;
@@ -154,5 +198,16 @@ public class MinioDocumentStorage {
                 : "Object storage rejected the operation",
             exception
         );
+    }
+
+    private DocumentStorageException translateRead(ErrorResponseException exception) {
+        if (exception.response().code() == 404) {
+            return new DocumentStorageException(
+                FailureType.NOT_FOUND,
+                "Object content was not found",
+                exception
+            );
+        }
+        return translate(exception);
     }
 }

@@ -1,0 +1,142 @@
+<main class="list-page">
+  <header class="page-heading">
+    <div>
+      <p class="eyebrow">DocFlow</p>
+      <h1 id="documents-title">Documentos</h1>
+      <p class="page-introduction">
+        Consulte os documentos registrados e acompanhe o estado informado pelo backend.
+      </p>
+    </div>
+    <button mat-flat-button color="primary" type="button" (click)="openNewUpload()">
+      <mat-icon aria-hidden="true">↑</mat-icon>
+      Novo documento
+    </button>
+  </header>
+
+  @if (isLoading) {
+    <section class="loading-state" aria-live="polite" aria-busy="true">
+      <mat-spinner diameter="40" />
+      <p>Carregando documentos...</p>
+    </section>
+  } @else if (listError) {
+    <section class="feedback feedback-error" role="alert" aria-live="assertive">
+      <mat-icon aria-hidden="true">!</mat-icon>
+      <div>
+        <h2>{{ listError.message }}</h2>
+        <button mat-stroked-button type="button" (click)="loadDocuments()">Tentar novamente</button>
+      </div>
+    </section>
+  } @else if (emptyListMessage(); as emptyMessage) {
+    <section class="empty-state" aria-live="polite">
+      <mat-icon aria-hidden="true">▱</mat-icon>
+      <h2>{{ emptyMessage }}</h2>
+      <p>Quando você enviar um documento, ele aparecerá nesta lista.</p>
+      <button mat-stroked-button type="button" (click)="openNewUpload()">Enviar documento</button>
+    </section>
+  } @else {
+    <section class="list-card" aria-labelledby="documents-list-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Registros disponíveis</p>
+          <h2 id="documents-list-title">Todos os documentos</h2>
+        </div>
+        <span class="document-count" aria-label="Quantidade de documentos">
+          {{ documents.length }} {{ documents.length === 1 ? 'documento' : 'documentos' }}
+        </span>
+      </div>
+
+      @if (actionError) {
+        <section class="feedback feedback-error" role="alert" aria-live="assertive">
+          <mat-icon aria-hidden="true">!</mat-icon>
+          <span>{{ actionError.message }}</span>
+        </section>
+      }
+
+      <div class="table-scroll">
+        <table>
+          <caption class="visually-hidden">Documentos registrados</caption>
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">Nome original</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Tamanho</th>
+              <th scope="col">Status</th>
+              <th scope="col">Criado em</th>
+              <th scope="col">Atualizado em</th>
+              <th scope="col"><span class="visually-hidden">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (document of documents; track document.id) {
+              <tr>
+                <td><code>{{ document.id }}</code></td>
+                <td class="filename-cell">
+                  <button class="document-link" type="button" (click)="openDocument(document)">
+                    {{ document.originalFilename }}
+                  </button>
+                </td>
+                <td>{{ document.contentType }}</td>
+                <td>{{ formatFileSize(document.sizeBytes) }}</td>
+                <td><span class="status-badge" [class]="'status-' + document.status.toLowerCase()">{{ document.status }}</span></td>
+                <td>{{ formatDate(document.createdAt) }}</td>
+                <td>{{ formatDate(document.updatedAt) }}</td>
+                <td class="actions-cell">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [disabled]="!!downloadingDocumentId || !!deletingDocumentId"
+                    (click)="downloadDocument(document)"
+                  >
+                    {{ downloadingDocumentId === document.id ? 'Baixando...' : 'Baixar' }}
+                  </button>
+                  <button
+                    mat-button
+                    color="warn"
+                    type="button"
+                    [disabled]="!!downloadingDocumentId || !!deletingDocumentId"
+                    (click)="requestDelete(document)"
+                  >
+                    {{ deletingDocumentId === document.id ? 'Excluindo...' : 'Excluir' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (pendingDeletion; as documentToDelete) {
+    <section
+      class="confirmation-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      cdkTrapFocus
+    >
+      <div class="confirmation-dialog">
+        <p class="eyebrow">Confirmação necessária</p>
+        <h2 id="delete-dialog-title">Excluir documento definitivamente?</h2>
+        <p>
+          O documento <strong>{{ documentToDelete.originalFilename }}</strong> e seu conteúdo serão
+          removidos sem possibilidade de recuperação.
+        </p>
+        <div class="dialog-actions">
+          <button mat-stroked-button type="button" (click)="cancelDelete()">Cancelar</button>
+          <button
+            #confirmDeleteButton
+            data-confirm-delete
+            mat-flat-button
+            color="warn"
+            type="button"
+            (click)="confirmDelete()"
+          >
+            Excluir definitivamente
+          </button>
+        </div>
+      </div>
+    </section>
+  }
+</main>

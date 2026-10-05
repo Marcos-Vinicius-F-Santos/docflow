@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "documentId": "00000000-0000-0000-0000-000000000001",
+      "status": "DELETED"
+    },
+    {
+      "documentId": "00000000-0000-0000-0000-000000000002",
+      "status": "FAILED",
+      "errorCode": "DOCUMENT_STORAGE_UNAVAILABLE",
+      "message": "Não foi possível excluir este documento."
+    },
+    {
+      "documentId": "00000000-0000-0000-0000-000000000003",
+      "status": "NOT_FOUND",
+      "errorCode": "DOCUMENT_NOT_FOUND",
+      "message": "Documento não encontrado."
+    }
+  ]
+}
