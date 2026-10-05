@@ -1,11 +1,11 @@
 # Frontend Angular do DocFlow
 
-O frontend Angular implementa o fluxo de registro e acompanhamento de um documento:
-seleção local, upload multipart, acompanhamento por identificador e atualização até
-`COMPLETED` ou `FAILED`.
+O frontend Angular implementa o fluxo de documentos: seleção local, upload multipart,
+acompanhamento por identificador, listagem, download de documentos `COMPLETED` e
+exclusão definitiva com confirmação explícita.
 
-Listagem global, download/preview, autenticação, autorização e multi-tenant não fazem
-parte desta versão porque não existem contratos correspondentes no backend.
+Autenticação, autorização, multi-tenant, preview e download em lote permanecem fora do
+escopo desta versão.
 
 ## Pré-requisitos
 
@@ -29,8 +29,8 @@ npm start
 ```
 
 Abra `http://localhost:4200/`. A rota inicial redireciona para
-`/documents/new`; após um upload aceito, a aplicação navega para
-`/documents/{documentId}`.
+`/documents/new`; a listagem fica disponível em `/documents` e, após um upload aceito,
+a aplicação navega para `/documents/{documentId}`.
 
 ## Comandos de validação
 
@@ -48,12 +48,18 @@ endpoints de MinIO, RabbitMQ ou PostgreSQL.
 
 ## Smoke test local
 
-1. Abra a tela de novo documento.
-2. Selecione um arquivo não vazio, com nome e tipo informados, de até 50 MiB.
-3. Confirme o envio e verifique o progresso e a navegação para a tela do documento.
-4. Observe `PENDING`, `PROCESSING` e o estado terminal retornado pelo backend.
-5. Teste um arquivo incompatível e um identificador inexistente para confirmar os
-   caminhos de erro.
+1. Abra a tela de novo documento e envie um arquivo não vazio, com nome e tipo
+   informados, de até 50 MiB.
+2. Acesse `/documents` e confirme que os documentos são exibidos com os sete campos e
+   todos os status retornados pelo backend.
+3. Para um documento `COMPLETED`, acione `Baixar` e confirme que o navegador recebe o
+   arquivo com o nome original.
+4. Acione `Excluir`, confirme a ação e confirme que o item desaparece da listagem.
+5. Cancele uma confirmação de exclusão e confirme que nenhuma requisição é enviada.
+6. Verifique a lista vazia e as mensagens aprovadas para falha de listagem, download e
+   exclusão.
+7. Abra novamente `/documents/new` e `/documents/{documentId}` para confirmar que
+   upload e consulta por identificador continuam funcionando.
 
 Para uma execução reproduzível sem navegador, o contrato HTTP também pode ser
 validado com:
@@ -62,7 +68,14 @@ validado com:
 curl.exe -X POST http://localhost:8080/documents `
   -F "file=@.\exemplo.pdf;type=application/pdf"
 curl.exe http://localhost:8080/documents/{documentId}
+curl.exe http://localhost:8080/documents
+curl.exe -OJ http://localhost:8080/documents/{documentId}/content
+curl.exe -i -X DELETE http://localhost:8080/documents/{documentId}
 ```
+
+O download HTTP só está disponível para documentos `COMPLETED`. A exclusão é
+definitiva e o endpoint não aceita `objectKey` nem referências de storage do cliente;
+os detalhes da política estão no [ADR-006](../specs/02-arquitetura/DECISAO/ADR-006-exclusao-definitiva-documentos.md).
 
 ## Rollback
 

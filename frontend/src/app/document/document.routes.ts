@@ -2,6 +2,11 @@ import { Routes } from '@angular/router';
 
 export const documentRoutes: Routes = [
   {
+    path: 'documents',
+    loadComponent: () =>
+      import('./pages/document-list-page').then(({ DocumentListPage }) => DocumentListPage),
+  },
+  {
     path: 'documents/new',
     loadComponent: () =>
       import('./pages/document-upload-page').then(({ DocumentUploadPage }) => DocumentUploadPage),

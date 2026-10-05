@@ -2,6 +2,8 @@ package com.dockflow.dockflow.document;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -9,6 +11,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Document d where d.id = :documentId")
+    Optional<Document> findByIdForUpdate(@Param("documentId") UUID documentId);
 
     /**
      * Atomically claims a document for one processing attempt.

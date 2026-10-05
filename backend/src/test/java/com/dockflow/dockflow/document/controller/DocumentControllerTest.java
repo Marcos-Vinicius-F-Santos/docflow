@@ -3,9 +3,13 @@ package com.dockflow.dockflow.document.controller;
 import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentService;
 import com.dockflow.dockflow.document.application.DocumentContent;
+import com.dockflow.dockflow.document.application.DocumentDownload;
 import com.dockflow.dockflow.document.adapter.in.web.exception.DocumentContentErrorCode;
 import com.dockflow.dockflow.document.adapter.in.web.exception.DocumentContentValidationException;
 import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
+import com.dockflow.dockflow.document.exception.DocumentContentNotAvailableException;
+import com.dockflow.dockflow.document.exception.DocumentContentNotFoundException;
+import com.dockflow.dockflow.document.exception.DocumentContentStorageUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -16,7 +20,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayInputStream;
 import java.util.UUID;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +33,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -265,5 +272,105 @@ class DocumentControllerTest {
 
         mockMvc.perform(get("/documents/{documentId}", id))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldListDocumentsWithAllStatusesAndSevenFields() throws Exception {
+        Document pending = new Document("pending.txt", "text/plain", 1);
+        Document processing = new Document("processing.txt", "text/plain", 2);
+        Document completed = new Document("completed.txt", "text/plain", 3);
+        Document failed = new Document("failed.txt", "text/plain", 4);
+        processing.startProcessing();
+        completed.startProcessing();
+        completed.markCompleted("documents/" + completed.getId());
+        failed.markFailed();
+        when(documentService.findAll()).thenReturn(List.of(pending, processing, completed, failed));
+
+        mockMvc.perform(get("/documents"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(4)))
+            .andExpect(jsonPath("$[0].id").value(pending.getId().toString()))
+            .andExpect(jsonPath("$[0].originalFilename").value("pending.txt"))
+            .andExpect(jsonPath("$[0].contentType").value("text/plain"))
+            .andExpect(jsonPath("$[0].sizeBytes").value(1))
+            .andExpect(jsonPath("$[0].status").value("PENDING"))
+            .andExpect(jsonPath("$[0].createdAt").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$[0].updatedAt").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$[1].status").value("PROCESSING"))
+            .andExpect(jsonPath("$[2].status").value("COMPLETED"))
+            .andExpect(jsonPath("$[3].status").value("FAILED"));
+    }
+
+    @Test
+    void shouldReturnEmptyDocumentList() throws Exception {
+        when(documentService.findAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/documents"))
+            .andExpect(status().isOk())
+            .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void shouldStreamCompletedDocumentWithApprovedHeaders() throws Exception {
+        UUID id = UUID.randomUUID();
+        byte[] bytes = "document content".getBytes(StandardCharsets.UTF_8);
+        when(documentService.download(id)).thenReturn(new DocumentDownload(
+            new ByteArrayInputStream(bytes),
+            bytes.length,
+            "text/plain",
+            "document.txt"
+        ));
+
+        mockMvc.perform(get("/documents/{documentId}/content", id))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes(bytes))
+            .andExpect(header().string("Content-Type", "text/plain"))
+            .andExpect(header().string("Content-Length", String.valueOf(bytes.length)))
+            .andExpect(header().string("Content-Disposition", "attachment; filename=\"document.txt\""))
+            .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
+    void shouldMapDownloadContentNotFoundToTheDownloadContract() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.download(id)).thenThrow(new DocumentContentNotFoundException(id));
+
+        mockMvc.perform(get("/documents/{documentId}/content", id))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void shouldMapUnavailableDownloadStorageToTheDownloadContract() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.download(id)).thenThrow(
+            new DocumentContentStorageUnavailableException(id, new IllegalStateException("offline"))
+        );
+
+        mockMvc.perform(get("/documents/{documentId}/content", id))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_STORAGE_UNAVAILABLE"));
+    }
+
+    @Test
+    void shouldMapUnavailableDocumentStatusToConflict() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.download(id)).thenThrow(
+            new DocumentContentNotAvailableException(id, com.dockflow.dockflow.document.DocumentStatus.PENDING)
+        );
+
+        mockMvc.perform(get("/documents/{documentId}/content", id))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_CONTENT_NOT_AVAILABLE"));
+    }
+
+    @Test
+    void shouldDeleteDocumentAndReturnNoContent() throws Exception {
+        UUID id = UUID.randomUUID();
+
+        mockMvc.perform(delete("/documents/{documentId}", id))
+            .andExpect(status().isNoContent());
+
+        verify(documentService).delete(id);
     }
 }

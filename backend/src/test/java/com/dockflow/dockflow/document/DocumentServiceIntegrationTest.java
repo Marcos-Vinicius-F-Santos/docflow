@@ -8,9 +8,13 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
+import com.dockflow.dockflow.document.storage.DocumentStorage;
 
 import org.junit.jupiter.api.Test;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,6 +44,12 @@ class DocumentServiceIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @MockitoBean
+    private DocumentStorage documentStorage;
+
+    @MockitoBean
+    private DocumentStagingRemover documentStagingRemover;
 
     @BeforeEach
     void cleanDatabase() {
@@ -179,6 +189,38 @@ class DocumentServiceIntegrationTest extends IntegrationTestBase {
             assertTrue(first.get(5, TimeUnit.SECONDS));
         } finally {
             releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldWaitForProcessingTransactionBeforeDeletingTheDocument() throws Exception {
+        Document document = documentService.registerDocument("delete-during-processing.pdf", "application/pdf", 10);
+        UUID documentId = document.getId();
+        CountDownLatch processingClaimed = new CountDownLatch(1);
+        CountDownLatch releaseProcessing = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Boolean> processing = executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                assertEquals(1, documentRepository.claimForProcessing(documentId, Instant.parse("2026-09-20T12:00:00Z")));
+                processingClaimed.countDown();
+                await(releaseProcessing);
+                return true;
+            }));
+
+            assertTrue(processingClaimed.await(5, TimeUnit.SECONDS));
+            Future<?> deletion = executor.submit(() -> documentService.delete(documentId));
+
+            Thread.sleep(200);
+            assertFalse(deletion.isDone());
+            releaseProcessing.countDown();
+
+            deletion.get(5, TimeUnit.SECONDS);
+            processing.get(5, TimeUnit.SECONDS);
+            assertTrue(documentRepository.findById(documentId).isEmpty());
+        } finally {
+            releaseProcessing.countDown();
             executor.shutdownNow();
         }
     }

@@ -1,0 +1,44 @@
+{
+  "content": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "originalFilename": "Report.PDF",
+      "contentType": "application/pdf",
+      "sizeBytes": 1024,
+      "status": "COMPLETED",
+      "createdAt": "2026-09-20T09:00:00Z",
+      "updatedAt": "2026-09-20T09:05:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "originalFilename": "processing.txt",
+      "contentType": "text/plain",
+      "sizeBytes": 2048,
+      "status": "PROCESSING",
+      "createdAt": "2026-09-19T09:00:00Z",
+      "updatedAt": "2026-09-20T08:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "originalFilename": "pending.docx",
+      "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "sizeBytes": 3072,
+      "status": "PENDING",
+      "createdAt": "2026-09-18T09:00:00Z",
+      "updatedAt": "2026-09-18T09:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "originalFilename": "failed.csv",
+      "contentType": "text/csv",
+      "sizeBytes": 4096,
+      "status": "FAILED",
+      "createdAt": "2026-09-17T09:00:00Z",
+      "updatedAt": "2026-09-17T09:10:00Z"
+    }
+  ],
+  "page": 1,
+  "size": 10,
+  "totalElements": 4,
+  "totalPages": 1
+}

@@ -1,4 +1,4 @@
-import { HttpClient, HttpEvent, HttpRequest } from '@angular/common/http';
+import { HttpClient, HttpEvent, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -24,5 +24,22 @@ export class DocumentApiService {
   findById(documentId: string): Observable<DocumentResponse> {
     const encodedDocumentId = encodeURIComponent(documentId);
     return this.http.get<DocumentResponse>(`${this.documentsUrl}/${encodedDocumentId}`);
+  }
+
+  list(): Observable<DocumentResponse[]> {
+    return this.http.get<DocumentResponse[]>(this.documentsUrl);
+  }
+
+  download(documentId: string): Observable<HttpResponse<Blob>> {
+    const encodedDocumentId = encodeURIComponent(documentId);
+    return this.http.get(`${this.documentsUrl}/${encodedDocumentId}/content`, {
+      observe: 'response',
+      responseType: 'blob',
+    });
+  }
+
+  delete(documentId: string): Observable<void> {
+    const encodedDocumentId = encodeURIComponent(documentId);
+    return this.http.delete<void>(`${this.documentsUrl}/${encodedDocumentId}`);
   }
 }

@@ -172,6 +172,31 @@ retenção e limpeza automática do staging não estão definidos nesta feature.
 O endpoint não deve retornar aceitação antes da gravação do staging e da publicação
 confirmada.
 
+## Operações de consulta, download e exclusão
+
+Depois que o backend estiver disponível, os contratos da feature de gestão de documentos
+podem ser verificados sem acessar diretamente PostgreSQL, RabbitMQ ou MinIO:
+
+```powershell
+curl.exe http://localhost:8080/documents
+curl.exe http://localhost:8080/documents/{documentId}
+curl.exe -OJ http://localhost:8080/documents/{documentId}/content
+curl.exe -i -X DELETE http://localhost:8080/documents/{documentId}
+```
+
+`GET /documents` retorna todos os estados (`PENDING`, `PROCESSING`, `COMPLETED` e
+`FAILED`). O download só retorna `200` para `COMPLETED`; os demais estados retornam
+`409/DOCUMENT_CONTENT_NOT_AVAILABLE`. O conteúdo é transmitido em streaming com
+`Content-Type`, `Content-Length`, `Content-Disposition: attachment` e
+`Cache-Control: no-store`.
+
+O frontend chama `DELETE /documents/{documentId}` somente após confirmação explícita do
+usuário. O caso de uso adquire lock da linha, remove o objeto final e o staging
+determinístico e só então remove o registro PostgreSQL. Falhas de storage preservam o
+registro para nova tentativa e não são apresentadas como sucesso. A política completa,
+incluindo mensagens tardias do RabbitMQ, está no
+[ADR-006 — Exclusão definitiva de documentos](../specs/02-arquitetura/DECISAO/ADR-006-exclusao-definitiva-documentos.md).
+
 ## Mensageria
 
 O contrato lógico usa JSON v1 com `schemaVersion`, `documentId`, `objectKey`,
@@ -202,6 +227,11 @@ para as filas de 5, 15 e 60 segundos, totalizando três retries além da entrega
 6. No RabbitMQ, confirmar a publicação persistente e o consumo da mensagem v1.
 7. Verificar que o objeto final existe, que o staging só é removido após sucesso e que
    uma falha de publicação mantém o documento `PENDING` e o staging preservado.
+8. Consultar `GET /documents` e confirmar os campos e estados retornados.
+9. Para um documento `COMPLETED`, validar o download e seus headers; tentar o download
+   de um documento não concluído e confirmar `409`.
+10. Excluir um documento pela interface após confirmação e confirmar `204`, remoção do
+    item na listagem e ausência dos objetos associados.
 
 O smoke test é considerado reprodutível quando outra pessoa consegue executar os passos
 acima usando apenas `infra/.env.example`, este documento e o README, substituindo os

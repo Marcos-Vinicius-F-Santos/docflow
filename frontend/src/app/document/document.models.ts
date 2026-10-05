@@ -10,6 +10,16 @@ export interface DocumentResponse {
   updatedAt: string;
 }
 
+export type DocumentOperation = 'list' | 'download' | 'delete' | 'general';
+
+export interface DocumentListState {
+  documents: DocumentResponse[];
+  errorMessage: string | null;
+}
+
+export const DOCUMENT_LIST_EMPTY_MESSAGE = 'Nenhum documento encontrado';
+export const DOCUMENT_LIST_ERROR_MESSAGE = 'Não foi possível exibir itens listados';
+
 export type DocumentContentErrorCode =
   | 'DOCUMENT_CONTENT_MISSING'
   | 'DOCUMENT_CONTENT_EMPTY'

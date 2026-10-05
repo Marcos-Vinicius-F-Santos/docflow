@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DocumentFileValidator, MAX_DOCUMENT_SIZE_BYTES } from './document-file-validator';
-import { mapDocumentError } from './document-error.mapper';
-import { DocumentContentErrorCode } from './document.models';
+import { documentListMessage, mapDocumentError } from './document-error.mapper';
+import { DocumentContentErrorCode, DocumentResponse } from './document.models';
 
 describe('DocumentFileValidator', () => {
   const validator = new DocumentFileValidator();
@@ -102,6 +102,32 @@ describe('mapDocumentError', () => {
       message,
       canRetryManually: true,
     });
+  });
+
+  it('maps every list failure to the approved list message', () => {
+    expect(mapDocumentError(new Error('backend failed'), 'list')).toMatchObject({
+      kind: 'operational',
+      message: 'Não foi possível exibir itens listados',
+      canRetryManually: true,
+    });
+    expect(mapDocumentError(new HttpErrorResponse({ status: 500 }), 'list').message).toBe(
+      'Não foi possível exibir itens listados',
+    );
+  });
+
+  it('produces the approved empty-list message only for an empty collection', () => {
+    const document: DocumentResponse = {
+      id: 'doc-123',
+      originalFilename: 'document.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 42,
+      status: 'COMPLETED',
+      createdAt: '2026-09-19T20:00:00Z',
+      updatedAt: '2026-09-19T20:00:00Z',
+    };
+
+    expect(documentListMessage([])).toBe('Nenhum documento encontrado');
+    expect(documentListMessage([document])).toBeNull();
   });
 });
 

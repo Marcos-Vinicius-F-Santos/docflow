@@ -233,6 +233,24 @@ class DocumentStorageMessageConsumerTest {
     }
 
     @Test
+    void shouldNotRecreateOrProcessADeletedDocumentWhenItsMessageArrivesLate() {
+        UUID documentId = UUID.randomUUID();
+        DocumentStorageRequestedMessage message = message(documentId, 8);
+
+        when(documentRepository.claimForProcessing(eq(documentId), eq(NOW))).thenReturn(0);
+        when(documentRepository.findById(documentId)).thenReturn(Optional.empty());
+
+        DocumentStorageMessageConsumer.ProcessingResult result = consumer().process(message);
+
+        assertEquals(DocumentStorageMessageConsumer.Disposition.RETRY, result.disposition());
+        assertEquals(
+            DocumentStorageMessageConsumer.RetryExhaustionPolicy.KEEP_PROCESSING,
+            result.retryExhaustionPolicy()
+        );
+        verifyNoStorageInteractions();
+    }
+
+    @Test
     void shouldRejectAnInvalidSchemaBeforeClaiming() {
         DocumentStorageRequestedMessage invalid = new DocumentStorageRequestedMessage(
             99,

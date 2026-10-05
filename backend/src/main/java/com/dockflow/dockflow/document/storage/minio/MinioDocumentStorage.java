@@ -7,6 +7,7 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
 import io.minio.errors.ErrorResponseException;
 import io.minio.messages.ErrorResponse;
 
@@ -61,6 +62,50 @@ public class MinioDocumentStorage implements DocumentStorage {
             throw new DocumentStorageException(
                 FailureType.RESULT_UNKNOWN,
                 "Object storage result could not be confirmed",
+                exception
+            );
+        } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
+            throw new DocumentStorageException(
+                FailureType.REJECTED,
+                "Object storage rejected the operation",
+                exception
+            );
+        }
+    }
+
+    @Override
+    public DocumentStorage.StoredContent open(String objectKey) {
+        try {
+            StatObjectResponse metadata = client.statObject(
+                StatObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .build()
+            );
+            InputStream content = client.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectKey)
+                    .build()
+            );
+            return new DocumentStorage.StoredContent(
+                content,
+                metadata.size(),
+                metadata.contentType()
+            );
+        } catch (ErrorResponseException exception) {
+            throw translateRead(exception);
+        } catch (InsufficientDataException | InvalidResponseException | InternalException |
+                 ServerException | XmlParserException exception) {
+            throw new DocumentStorageException(
+                FailureType.UNAVAILABLE,
+                "Object storage is unavailable",
+                exception
+            );
+        } catch (IOException exception) {
+            throw new DocumentStorageException(
+                FailureType.RESULT_UNKNOWN,
+                "Object content could not be opened",
                 exception
             );
         } catch (NoSuchAlgorithmException | InvalidKeyException exception) {
@@ -153,5 +198,16 @@ public class MinioDocumentStorage implements DocumentStorage {
                 : "Object storage rejected the operation",
             exception
         );
+    }
+
+    private DocumentStorageException translateRead(ErrorResponseException exception) {
+        if (exception.response().code() == 404) {
+            return new DocumentStorageException(
+                FailureType.NOT_FOUND,
+                "Object content was not found",
+                exception
+            );
+        }
+        return translate(exception);
     }
 }

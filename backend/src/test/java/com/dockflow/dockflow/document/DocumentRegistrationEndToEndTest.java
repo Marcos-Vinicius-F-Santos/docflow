@@ -4,6 +4,7 @@ import io.minio.BucketExistsArgs;
 import io.minio.GetObjectArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.errors.ErrorResponseException;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,8 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -137,6 +140,61 @@ class DocumentRegistrationEndToEndTest {
             .andExpect(jsonPath("$.sizeBytes").value(content.length));
     }
 
+    @Test
+    void shouldListAllStatusesDownloadCompletedAndDeleteItsResourcesDefinitively() throws Exception {
+        documentRepository.deleteAll();
+        UUID pendingId = UUID.randomUUID();
+        UUID processingId = UUID.randomUUID();
+        UUID completedId = UUID.randomUUID();
+        UUID failedId = UUID.randomUUID();
+        byte[] content = "completed-document-content".getBytes(StandardCharsets.UTF_8);
+
+        Document pending = new Document(pendingId, "pending.pdf", "application/pdf", 1);
+        Document processing = new Document(processingId, "processing.pdf", "application/pdf", 2);
+        processing.startProcessing();
+        processing.registerStorageObjectKey("documents/" + processingId);
+        Document completed = new Document(completedId, "completed.txt", "text/plain", content.length);
+        completed.startProcessing();
+        completed.markCompleted("documents/" + completedId);
+        Document failed = new Document(failedId, "failed.pdf", "application/pdf", 3);
+        failed.markFailed();
+        documentRepository.saveAll(java.util.List.of(pending, processing, completed, failed));
+
+        MinioClient storage = minioClient();
+        putObject(storage, FINAL_BUCKET, completed.getObjectKey(), content, "text/plain");
+        putObject(storage, STAGING_BUCKET, "staging/" + completedId, content, "text/plain");
+
+        mockMvc.perform(get("/documents"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[*].status", org.hamcrest.Matchers.hasItems(
+                "PENDING", "PROCESSING", "COMPLETED", "FAILED"
+            )))
+            .andExpect(jsonPath("$[*].originalFilename", org.hamcrest.Matchers.hasItems(
+                "pending.pdf", "processing.pdf", "completed.txt", "failed.pdf"
+            )));
+
+        mockMvc.perform(get("/documents/{documentId}/content", completedId))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes(content))
+            .andExpect(header().string("Content-Type", "text/plain"))
+            .andExpect(header().string("Content-Length", String.valueOf(content.length)))
+            .andExpect(header().string(
+                "Content-Disposition",
+                "attachment; filename=\"completed.txt\""
+            ));
+
+        mockMvc.perform(get("/documents/{documentId}/content", pendingId))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_CONTENT_NOT_AVAILABLE"));
+
+        mockMvc.perform(delete("/documents/{documentId}", completedId))
+            .andExpect(status().isNoContent());
+
+        assertTrue(documentRepository.findById(completedId).isEmpty());
+        assertFalse(objectExists(storage, FINAL_BUCKET, "documents/" + completedId));
+        assertFalse(objectExists(storage, STAGING_BUCKET, "staging/" + completedId));
+    }
+
     private Document awaitCompleted(UUID documentId) throws InterruptedException {
         long deadline = System.nanoTime() + 20_000_000_000L;
         while (System.nanoTime() < deadline) {
@@ -176,5 +234,20 @@ class DocumentRegistrationEndToEndTest {
             }
             throw exception;
         }
+    }
+
+    private static void putObject(
+        MinioClient client,
+        String bucket,
+        String object,
+        byte[] content,
+        String contentType
+    ) throws Exception {
+        client.putObject(PutObjectArgs.builder()
+            .bucket(bucket)
+            .object(object)
+            .stream(new java.io.ByteArrayInputStream(content), content.length, -1)
+            .contentType(contentType)
+            .build());
     }
 }

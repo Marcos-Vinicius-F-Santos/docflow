@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { DocumentContentErrorCode, ProblemDetail } from './document.models';
+import {
+  DocumentContentErrorCode,
+  DocumentResponse,
+  DocumentOperation,
+  ProblemDetail,
+  DOCUMENT_LIST_EMPTY_MESSAGE,
+  DOCUMENT_LIST_ERROR_MESSAGE,
+} from './document.models';
 
 export type DocumentApiErrorKind = 'validation' | 'not-found' | 'operational';
 
@@ -24,9 +31,18 @@ const validationMessages: Record<DocumentContentErrorCode, string> = {
   DOCUMENT_CONTENT_READ_FAILED: 'Não foi possível ler o conteúdo do arquivo.',
 };
 
-export function mapDocumentError(error: unknown): DocumentApiError {
+export function mapDocumentError(
+  error: unknown,
+  operation: DocumentOperation = 'general',
+): DocumentApiError {
   if (!(error instanceof HttpErrorResponse)) {
-    return operationalError();
+    return operation === 'list'
+      ? operationalError(DOCUMENT_LIST_ERROR_MESSAGE)
+      : operationalError();
+  }
+
+  if (operation === 'list') {
+    return operationalError(DOCUMENT_LIST_ERROR_MESSAGE, error.status);
   }
 
   if (error.status === 404) {
@@ -61,6 +77,10 @@ export function mapDocumentError(error: unknown): DocumentApiError {
   }
 
   return operationalError('Não foi possível concluir a operação.', error.status);
+}
+
+export function documentListMessage(documents: readonly DocumentResponse[]): string | null {
+  return documents.length === 0 ? DOCUMENT_LIST_EMPTY_MESSAGE : null;
 }
 
 function isDocumentContentErrorCode(value: unknown): value is DocumentContentErrorCode {

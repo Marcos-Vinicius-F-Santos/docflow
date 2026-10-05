@@ -5,6 +5,9 @@ import com.dockflow.dockflow.document.storage.DocumentStorageException.FailureTy
 
 import io.minio.MinioClient;
 import io.minio.StatObjectArgs;
+import io.minio.GetObjectArgs;
+import io.minio.GetObjectResponse;
+import io.minio.StatObjectResponse;
 import io.minio.errors.ErrorResponseException;
 import io.minio.messages.ErrorResponse;
 
@@ -82,6 +85,38 @@ class MinioDocumentStorageTest {
         );
 
         assertEquals(FailureType.RESULT_UNKNOWN, exception.getFailureType());
+    }
+
+    @Test
+    void shouldOpenFinalObjectWithMetadata() throws Exception {
+        MinioClient client = mock(MinioClient.class);
+        StatObjectResponse metadata = mock(StatObjectResponse.class);
+        when(metadata.size()).thenReturn(12L);
+        when(metadata.contentType()).thenReturn("text/plain");
+        when(client.statObject(any(StatObjectArgs.class))).thenReturn(metadata);
+        when(client.getObject(any(GetObjectArgs.class)))
+            .thenReturn(mock(GetObjectResponse.class));
+
+        var content = new MinioDocumentStorage(client, "documents").open("documents/123");
+
+        assertEquals(12L, content.sizeBytes());
+        assertEquals("text/plain", content.contentType());
+        assertTrue(content.content() instanceof GetObjectResponse);
+    }
+
+    @Test
+    void shouldMapMissingFinalObjectToNotFound() throws Exception {
+        MinioClient client = mock(MinioClient.class);
+        doThrow(errorResponseException(404))
+            .when(client)
+            .statObject(any(StatObjectArgs.class));
+
+        DocumentStorageException exception = assertThrows(
+            DocumentStorageException.class,
+            () -> new MinioDocumentStorage(client, "documents").open("documents/missing")
+        );
+
+        assertEquals(FailureType.NOT_FOUND, exception.getFailureType());
     }
 
     private ErrorResponseException errorResponseException(int statusCode) {

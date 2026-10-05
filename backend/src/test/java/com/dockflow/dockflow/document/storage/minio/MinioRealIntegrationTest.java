@@ -73,6 +73,26 @@ class MinioRealIntegrationTest {
     }
 
     @Test
+    void shouldReadTheStoredObjectAsAStreamingContentWithMetadata() throws Exception {
+        MinioClient client = client(USER, PASSWORD);
+        MinioDocumentStorage storage = new MinioDocumentStorage(client, FINAL_BUCKET);
+        UUID documentId = UUID.randomUUID();
+        byte[] content = "streamed-real-minio-content".getBytes(StandardCharsets.UTF_8);
+        String objectKey = "documents/" + documentId;
+
+        storage.store(objectKey, new ByteArrayInputStream(content), content.length, "text/plain");
+
+        var opened = storage.open(objectKey);
+        try (var stream = opened.content()) {
+            assertEquals(content.length, opened.sizeBytes());
+            assertEquals("text/plain", opened.contentType());
+            assertArrayEquals(content, stream.readAllBytes());
+        } finally {
+            storage.delete(objectKey);
+        }
+    }
+
+    @Test
     void shouldRejectInvalidApplicationCredentialsAgainstRealMinio() {
         MinioDocumentStorage storage = new MinioDocumentStorage(
             client(USER, "wrong-password"),

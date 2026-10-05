@@ -24,9 +24,12 @@ O DocFlow permite:
   `FAILED`;
 - reconciliar resultados desconhecidos do storage sem promover silenciosamente um
   documento para sucesso.
+- listar documentos em qualquer estado persistido;
+- baixar o conteúdo final de documentos `COMPLETED`;
+- excluir definitivamente documentos após confirmação explícita no frontend.
 
-O frontend Angular permite enviar um documento e acompanhar seu processamento por
-identificador. A execução local está descrita em [`docs/frontend.md`](docs/frontend.md).
+O frontend Angular permite enviar, acompanhar, listar, baixar e excluir documentos. A
+execução local está descrita em [`docs/frontend.md`](docs/frontend.md).
 
 ## Stack
 
@@ -142,6 +145,28 @@ Limite máximo do conteúdo: `52.428.800` bytes (50 MiB).
 curl http://localhost:8080/documents/{documentId}
 ```
 
+### Listar documentos
+
+```bash
+curl http://localhost:8080/documents
+```
+
+### Baixar documento concluído
+
+```bash
+curl -OJ http://localhost:8080/documents/{documentId}/content
+```
+
+### Excluir documento definitivamente
+
+```bash
+curl -i -X DELETE http://localhost:8080/documents/{documentId}
+```
+
+O frontend solicita confirmação antes de chamar o endpoint de exclusão. O backend
+remove o registro PostgreSQL, o objeto final e o staging determinístico conforme o
+[ADR-006](specs/02-arquitetura/DECISAO/ADR-006-exclusao-definitiva-documentos.md).
+
 O contrato detalhado da API está em [`docs/api.md`](docs/api.md).
 
 ## Testes
@@ -175,7 +200,8 @@ Os testes e o build do frontend estão documentados em
 
 O smoke test oficial está descrito em [`docs/document-registration-operations.md`](docs/document-registration-operations.md):
 ele cobre bootstrap, `POST /documents`, publicação/consumo RabbitMQ, objeto final,
-remoção condicional do staging e consulta do estado final. Uma credencial inválida deve
+remoção condicional do staging, listagem, download concluído, exclusão definitiva e
+consulta do estado final. Uma credencial inválida deve
 fazer o bootstrap falhar explicitamente; corrija o arquivo local e execute-o novamente,
 sem apagar volumes para mascarar o diagnóstico.
 

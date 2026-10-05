@@ -1,4 +1,4 @@
-import { HttpEventType, provideHttpClient } from '@angular/common/http';
+import { HttpEventType, HttpHeaders, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { DocumentApiService } from './document-api.service';
@@ -88,5 +88,95 @@ describe('DocumentApiService', () => {
 
     expect(errorStatus).toBe(400);
     http.verify();
+  });
+
+  it('lists documents with all statuses', () => {
+    let result: DocumentResponse[] | undefined;
+
+    service.list().subscribe((response) => (result = response));
+
+    const request = http.expectOne('/api/documents');
+    expect(request.request.method).toBe('GET');
+    request.flush([documentResponse, { ...documentResponse, status: 'FAILED' }]);
+
+    expect(result?.map((document) => document.status)).toEqual(['PENDING', 'FAILED']);
+  });
+
+  it('returns an empty collection unchanged', () => {
+    let result: DocumentResponse[] | undefined;
+
+    service.list().subscribe((response) => (result = response));
+
+    const request = http.expectOne('/api/documents');
+    expect(request.request.method).toBe('GET');
+    request.flush([]);
+
+    expect(result).toEqual([]);
+  });
+
+  it('downloads a document as a blob and preserves the response headers', () => {
+    let result: import('@angular/common/http').HttpResponse<Blob> | undefined;
+    const blob = new Blob(['content'], { type: 'text/plain' });
+
+    service.download('doc/123').subscribe((response) => (result = response));
+
+    const request = http.expectOne('/api/documents/doc%2F123/content');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.responseType).toBe('blob');
+    request.flush(blob, {
+      status: 200,
+      statusText: 'OK',
+      headers: new HttpHeaders({
+        'Content-Type': 'text/plain',
+        'Content-Length': '7',
+        'Content-Disposition': 'attachment; filename="document.txt"',
+      }),
+    });
+
+    expect(result?.body).toBe(blob);
+    expect(result?.headers.get('Content-Type')).toBe('text/plain');
+    expect(result?.headers.get('Content-Length')).toBe('7');
+    expect(result?.headers.get('Content-Disposition')).toContain('document.txt');
+  });
+
+  it.each([404, 409, 503, 500])('propagates download HTTP status %s', (status) => {
+    let errorStatus: number | undefined;
+
+    service.download('doc-123').subscribe({
+      error: (error: { status: number }) => (errorStatus = error.status),
+    });
+
+    const request = http.expectOne('/api/documents/doc-123/content');
+    request.flush(
+      new Blob([JSON.stringify({ errorCode: 'DOCUMENT_ERROR' })], { type: 'application/problem+json' }),
+      { status, statusText: 'Error' },
+    );
+
+    expect(errorStatus).toBe(status);
+  });
+
+  it('propagates a download network failure', () => {
+    let errorStatus: number | undefined;
+
+    service.download('doc-123').subscribe({
+      error: (error: { status: number }) => (errorStatus = error.status),
+    });
+
+    const request = http.expectOne('/api/documents/doc-123/content');
+    request.error(new ProgressEvent('error'));
+
+    expect(errorStatus).toBe(0);
+  });
+
+  it('deletes an encoded document identifier', () => {
+    let completed = false;
+
+    service.delete('doc/123').subscribe(() => (completed = true));
+
+    const request = http.expectOne('/api/documents/doc%2F123');
+    expect(request.request.method).toBe('DELETE');
+    request.flush(null);
+
+    expect(completed).toBe(true);
   });
 });
