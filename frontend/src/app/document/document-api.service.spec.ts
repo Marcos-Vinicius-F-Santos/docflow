@@ -142,6 +142,10 @@ describe('DocumentApiService', () => {
     expect(result?.headers.get('Content-Disposition')).toContain('document.txt');
   });
 
+  it('builds an encoded inline preview URL for PDFs', () => {
+    expect(service.previewContentUrl('doc/123')).toBe('/api/documents/doc%2F123/preview');
+  });
+
   it.each([404, 409, 503, 500])('propagates download HTTP status %s', (status) => {
     let errorStatus: number | undefined;
 

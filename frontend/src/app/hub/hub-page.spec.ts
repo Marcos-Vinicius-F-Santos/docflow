@@ -12,9 +12,6 @@ describe('HubPage', () => {
   let documentApi: {
     list: ReturnType<typeof vi.fn>;
     upload: ReturnType<typeof vi.fn>;
-    download: ReturnType<typeof vi.fn>;
-    retry: ReturnType<typeof vi.fn>;
-    delete: ReturnType<typeof vi.fn>;
   };
 
   const documentResponse = (
@@ -39,9 +36,6 @@ describe('HubPage', () => {
     documentApi = {
       list: vi.fn(() => of([])),
       upload: vi.fn(),
-      download: vi.fn(),
-      retry: vi.fn(),
-      delete: vi.fn(),
     };
     await TestBed.configureTestingModule({
       imports: [HubPage],
@@ -52,16 +46,17 @@ describe('HubPage', () => {
     fixture.detectChanges();
   });
 
-  it('renders the DocFlow hub heading and existing document navigation', () => {
+  it('renders the DocFlow hub heading without separate upload or list navigation', () => {
     const element = fixture.nativeElement as HTMLElement;
 
     expect(element.querySelector('h1')?.textContent).toContain('Hub de documentos');
     expect(element.querySelector('.eyebrow')?.textContent).toContain('DocFlow');
-    expect(element.querySelector('a[href="/documents/new"]')).not.toBeNull();
-    expect(element.querySelector('a[href="/documents"]')).not.toBeNull();
+    expect(element.querySelector('a[href="/documents/new"]')).toBeNull();
+    expect(element.querySelector('a[href="/documents"]')).toBeNull();
+    expect(element.querySelector('.hub-layout')).not.toBeNull();
   });
 
-  it('shows the five most recently updated documents and every failed document', async () => {
+  it('shows five recent documents and only five recent failed documents in the sidebar', async () => {
     documentApi.list.mockReturnValue(
       of([
         documentResponse('oldest', 'COMPLETED', '2026-09-01T10:00:00Z'),
@@ -70,6 +65,11 @@ describe('HubPage', () => {
         documentResponse('recent-3', 'COMPLETED', '2026-09-04T10:00:00Z'),
         documentResponse('recent-4', 'PENDING', '2026-09-03T10:00:00Z'),
         documentResponse('recent-5', 'COMPLETED', '2026-09-02T10:00:00Z'),
+        documentResponse('failed-1', 'FAILED', '2026-09-07T10:00:00Z'),
+        documentResponse('failed-2', 'FAILED', '2026-09-06T10:00:00Z'),
+        documentResponse('failed-3', 'FAILED', '2026-09-05T10:00:00Z'),
+        documentResponse('failed-4', 'FAILED', '2026-09-04T10:00:00Z'),
+        documentResponse('failed-5', 'FAILED', '2026-09-03T10:00:00Z'),
         documentResponse('failed-not-recent', 'FAILED', '2026-08-01T10:00:00Z'),
       ]),
     );
@@ -80,11 +80,32 @@ describe('HubPage', () => {
     fixture.detectChanges();
 
     const sections = fixture.nativeElement.querySelectorAll('aside section');
+    expect(sections[0].textContent).toContain('failed-1.pdf');
     expect(sections[0].textContent).toContain('recent-1.pdf');
-    expect(sections[0].textContent).toContain('recent-5.pdf');
     expect(sections[0].textContent).not.toContain('oldest.pdf');
-    expect(sections[1].textContent).toContain('failed-not-recent.pdf');
+    expect(sections[0].querySelectorAll('li')).toHaveLength(5);
+    expect(sections[1].textContent).toContain('failed-1.pdf');
+    expect(sections[1].textContent).toContain('failed-5.pdf');
+    expect(sections[1].textContent).not.toContain('failed-not-recent.pdf');
+    expect(sections[1].querySelectorAll('li')).toHaveLength(5);
+    expect(fixture.nativeElement.querySelector('.document-card[title="failed-1.pdf"]')).not.toBeNull();
     expect(fixture.nativeElement.textContent).not.toContain('downloads');
+  });
+
+  it('navigates document cards to tracking and keeps the full name in the tooltip', async () => {
+    const document = documentResponse('document-with-a-long-name', 'COMPLETED', '2026-09-01T10:00:00Z');
+    document.originalFilename = 'document-with-a-long-name-that-needs-a-tooltip.pdf';
+    documentApi.list.mockReturnValue(of([document]));
+
+    fixture = TestBed.createComponent(HubPage);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector('.document-card') as HTMLAnchorElement;
+    expect(card.title).toBe(document.originalFilename);
+    expect(card.href).toContain('/documents/document-with-a-long-name');
+    expect(card.getAttribute('aria-label')).toContain(document.originalFilename);
   });
 
   it('uses createdAt when updatedAt is unavailable for recent ordering', () => {
@@ -168,6 +189,7 @@ describe('HubPage', () => {
     expect(fixture.nativeElement.querySelectorAll('.document-list li')).toHaveLength(4);
     expect(fixture.nativeElement.textContent).toContain('pending.pdf');
     expect(fixture.nativeElement.textContent).toContain('FAILED');
+    expect(fixture.nativeElement.querySelector('a[href="/documents/failed"]')).not.toBeNull();
   });
 
   it('shows the empty central state without removing the upload dropbox', async () => {
@@ -231,63 +253,7 @@ describe('HubPage', () => {
     expect(fixture.nativeElement.querySelector('.state-failed')).not.toBeNull();
   });
 
-  it('offers download only for completed documents and retries eligible failures', async () => {
-    const completed = documentResponse('completed', 'COMPLETED', '2026-09-01T10:00:00Z');
-    const retryable = documentResponse('retryable', 'FAILED', '2026-09-02T10:00:00Z');
-    const exhausted = { ...documentResponse('exhausted', 'FAILED', '2026-09-03T10:00:00Z'), falhas: 3, isExcluded: true };
-    documentApi.list.mockReturnValue(of([completed, retryable, exhausted]));
-    documentApi.retry.mockReturnValue(
-      of(new HttpResponse({ body: { ...retryable, status: 'PROCESSING' }, status: 202 })),
-    );
-    documentApi.list.mockClear();
-
-    fixture = TestBed.createComponent(HubPage);
-    const page = fixture.componentInstance;
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(fixture.nativeElement.textContent).toContain('Baixar');
-    expect(fixture.nativeElement.textContent).toContain('Tentar novamente');
-    expect(fixture.nativeElement.querySelectorAll('.document-actions button')).toHaveLength(5);
-
-    page.retryDocument(retryable);
-    expect(documentApi.retry).toHaveBeenCalledWith('retryable');
-    expect(page.documents[0].status).toBe('PROCESSING');
-    page.retryDocument(exhausted);
-    expect(documentApi.retry).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps manual deletion behind confirmation and removes only after success', async () => {
-    const document = documentResponse('to-delete', 'FAILED', '2026-09-01T10:00:00Z');
-    documentApi.list.mockReturnValue(of([document]));
-    documentApi.delete.mockReturnValue(of(void 0));
-    documentApi.list.mockClear();
-
-    fixture = TestBed.createComponent(HubPage);
-    const page = fixture.componentInstance;
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    page.requestDelete(document);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(documentApi.delete).not.toHaveBeenCalled();
-
-    page.cancelDelete();
-    fixture.detectChanges();
-    expect(documentApi.delete).not.toHaveBeenCalled();
-    expect(page.documents).toHaveLength(1);
-
-    page.requestDelete(document);
-    fixture.detectChanges();
-    page.confirmDelete();
-    expect(documentApi.delete).toHaveBeenCalledWith('to-delete');
-    expect(page.documents).toHaveLength(0);
-  });
-
-  it('keeps actions keyboard reachable and blocks concurrent operations', () => {
+  it('keeps the upload dropbox keyboard reachable and blocks concurrent uploads', () => {
     fixture = TestBed.createComponent(HubPage);
     const page = fixture.componentInstance;
     const dropZone = fixture.nativeElement.querySelector('.drop-zone') as HTMLElement;
@@ -296,23 +262,21 @@ describe('HubPage', () => {
     expect(dropZone.getAttribute('tabindex')).toBe('0');
     expect(dropZone.querySelector('input')).not.toBeNull();
 
-    page.retryingDocumentId = 'retrying';
-    const completed = documentResponse('completed', 'COMPLETED', '2026-09-01T10:00:00Z');
-    page.downloadDocument(completed);
-    page.requestDelete(completed);
+    page.uploadInProgress = true;
+    page.selectFile(new File(['content'], 'document.pdf', { type: 'application/pdf' }));
 
-    expect(documentApi.download).not.toHaveBeenCalled();
-    expect(documentApi.delete).not.toHaveBeenCalled();
-    expect(page.pendingDeletion).toBeNull();
+    expect(page.selectedFile).toBeNull();
+    expect(page.hasActiveAction()).toBe(true);
   });
 });
 
 describe('application routes', () => {
   it('loads the Hub at the root while preserving document routes', () => {
     expect(routes[0]).toMatchObject({ path: '', pathMatch: 'full' });
-    expect(routes.some((route) => route.path === 'documents')).toBe(true);
-    expect(routes.some((route) => route.path === 'documents/new')).toBe(true);
+    expect(routes.some((route) => route.path === 'documents')).toBe(false);
+    expect(routes.some((route) => route.path === 'documents/new')).toBe(false);
     expect(routes.some((route) => route.path === 'documents/:documentId')).toBe(true);
+    expect(routes.find((route) => route.path === '**')).toMatchObject({ redirectTo: '' });
   });
 
   it('navigates to the Hub at the root', async () => {

@@ -8,5 +8,5 @@ export const routes: Routes = [
     loadComponent: () => import('./hub/hub-page').then(({ HubPage }) => HubPage),
   },
   ...documentRoutes,
-  { path: '**', redirectTo: 'documents/new' },
+  { path: '**', redirectTo: '' },
 ];

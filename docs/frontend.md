@@ -1,11 +1,17 @@
 # Frontend Angular do DocFlow
 
-O frontend Angular implementa o fluxo de documentos: seleção local, upload multipart,
-acompanhamento por identificador, listagem, download de documentos `COMPLETED` e
+O frontend Angular implementa o Hub de documentos: seleção local, upload multipart,
+listagem central, acompanhamento por identificador, download de documentos `COMPLETED` e
 exclusão definitiva com confirmação explícita.
 
-Autenticação, autorização, multi-tenant, preview e download em lote permanecem fora do
-escopo desta versão.
+Os documentos da lista central aparecem em blocos compactos. O nome é truncado quando
+necessário e o atributo de tooltip mantém o nome completo disponível no hover. Ao clicar
+em um bloco, o Hub navega para `/documents/{documentId}`, onde a página de acompanhamento
+exibe metadados, status, download, retry elegível, exclusão e preview somente leitura de
+PDFs concluídos.
+
+Autenticação, autorização, multi-tenant, preview de formatos que não sejam PDF e download
+em lote permanecem fora do escopo desta versão.
 
 ## Pré-requisitos
 
@@ -28,9 +34,9 @@ npm install
 npm start
 ```
 
-Abra `http://localhost:4200/`. A rota inicial redireciona para
-`/documents/new`; a listagem fica disponível em `/documents` e, após um upload aceito,
-a aplicação navega para `/documents/{documentId}`.
+Abra `http://localhost:4200/`. O Hub concentra o upload e a listagem central. Cada
+documento listado pode abrir o acompanhamento em `/documents/{documentId}`; não há
+rotas separadas `/documents` ou `/documents/new` na navegação.
 
 ## Comandos de validação
 
@@ -48,18 +54,18 @@ endpoints de MinIO, RabbitMQ ou PostgreSQL.
 
 ## Smoke test local
 
-1. Abra a tela de novo documento e envie um arquivo não vazio, com nome e tipo
-   informados, de até 50 MiB.
-2. Acesse `/documents` e confirme que os documentos são exibidos com os sete campos e
-   todos os status retornados pelo backend.
-3. Para um documento `COMPLETED`, acione `Baixar` e confirme que o navegador recebe o
-   arquivo com o nome original.
-4. Acione `Excluir`, confirme a ação e confirme que o item desaparece da listagem.
-5. Cancele uma confirmação de exclusão e confirme que nenhuma requisição é enviada.
-6. Verifique a lista vazia e as mensagens aprovadas para falha de listagem, download e
+1. Abra o Hub e envie um arquivo não vazio, com nome e tipo informados, de até 50 MiB.
+2. Confirme que o Hub exibe os documentos em blocos compactos, com tooltip do nome
+   completo, além de até cinco itens em “Atividade” e “Atenção”.
+3. Selecione um documento e confirme que `/documents/{documentId}` abre o acompanhamento
+   com os sete campos/status retornados pelo backend.
+4. Para um documento `COMPLETED` em PDF, confirme que a página oferece `Baixar`, `Excluir`
+   e um preview ao final; acione `Baixar` e confirme que o navegador recebe o arquivo com
+   o nome original.
+5. Acione `Excluir`, confirme a ação e confirme que o item desaparece da listagem.
+6. Cancele uma confirmação de exclusão e confirme que nenhuma requisição é enviada.
+7. Verifique a lista vazia e as mensagens aprovadas para falha de listagem, download e
    exclusão.
-7. Abra novamente `/documents/new` e `/documents/{documentId}` para confirmar que
-   upload e consulta por identificador continuam funcionando.
 
 Para uma execução reproduzível sem navegador, o contrato HTTP também pode ser
 validado com:
@@ -70,6 +76,7 @@ curl.exe -X POST http://localhost:8080/documents `
 curl.exe http://localhost:8080/documents/{documentId}
 curl.exe http://localhost:8080/documents
 curl.exe -OJ http://localhost:8080/documents/{documentId}/content
+curl.exe http://localhost:8080/documents/{documentId}/preview
 curl.exe -i -X DELETE http://localhost:8080/documents/{documentId}
 ```
 

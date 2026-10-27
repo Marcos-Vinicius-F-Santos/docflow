@@ -4,7 +4,7 @@
 }
 
 .hub-header {
-  max-width: 52rem;
+  max-width: 72rem;
   margin: 0 auto;
 }
 
@@ -58,8 +58,7 @@ h1 {
 }
 
 .hub-upload {
-  max-width: 52rem;
-  margin: 2rem auto 0;
+  margin: 0;
   padding: 1.5rem;
   border: 1px solid #d9e2ec;
   border-radius: 0.75rem;
@@ -100,6 +99,21 @@ button:focus-visible {
 .drop-zone.is-disabled {
   cursor: wait;
   opacity: 0.7;
+}
+
+.hub-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 1.5rem;
+  max-width: 72rem;
+  margin: 2rem auto 0;
+  align-items: start;
+}
+
+.hub-main {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
 }
 
 .drop-zone-title {
@@ -162,8 +176,7 @@ button:focus-visible {
 }
 
 .hub-document-list {
-  max-width: 52rem;
-  margin: 2rem auto 0;
+  margin: 0;
   padding: 1.5rem;
   border: 1px solid #d9e2ec;
   border-radius: 0.75rem;
@@ -219,6 +232,7 @@ button:focus-visible {
 
 .document-list {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: 0.75rem;
   margin: 1rem 0 0;
   padding: 0;
@@ -226,17 +240,40 @@ button:focus-visible {
 }
 
 .document-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.document-card {
+  display: grid;
+  width: 100%;
+  min-height: 7rem;
+  gap: 0.75rem;
   padding: 0.875rem;
-  border: 1px solid #e4e7eb;
-  border-radius: 0.5rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #243b53;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.document-card:hover,
+.document-card:focus-visible {
+  border-color: #0b69a3;
+  box-shadow: 0 0.35rem 0.9rem rgb(16 42 67 / 0.12);
+  transform: translateY(-1px);
+}
+
+.document-card:focus-visible {
+  outline: 3px solid #fdb022;
+  outline-offset: 3px;
 }
 
 .document-name {
+  display: block;
   overflow: hidden;
   color: #243b53;
   font-weight: 600;
@@ -254,77 +291,6 @@ button:focus-visible {
   white-space: nowrap;
 }
 
-.document-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.document-actions button,
-.dialog-actions button {
-  min-height: 2.25rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid #bcccdc;
-  border-radius: 0.45rem;
-  background: #fff;
-  color: #243b53;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-}
-
-.document-actions button:first-child {
-  border-color: #0b69a3;
-  color: #0b69a3;
-}
-
-.document-actions button:disabled,
-.dialog-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.confirmation-backdrop {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
-  background: rgb(16 42 67 / 0.45);
-}
-
-.confirmation-dialog {
-  width: min(100%, 32rem);
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  background: #fff;
-  box-shadow: 0 1rem 2rem rgb(16 42 67 / 0.2);
-}
-
-.confirmation-dialog h2 {
-  margin: 0;
-  color: #243b53;
-}
-
-.confirmation-dialog p:not(.eyebrow) {
-  color: #486581;
-  line-height: 1.5;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-
-.dialog-actions button:last-child {
-  border-color: #b42318;
-  background: #b42318;
-  color: #fff;
-}
-
 @media (max-width: 640px) {
   .hub-page {
     padding: 1rem;
@@ -336,19 +302,11 @@ button:focus-visible {
     padding: 1rem;
   }
 
-  .section-heading,
-  .document-list li {
+  .section-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .document-actions {
-    margin-left: 0;
-  }
-
-  .document-actions button {
-    flex: 1 1 auto;
-  }
 }
 
 .state-icon {
@@ -397,8 +355,7 @@ button:focus-visible {
 .hub-sidebar {
   display: grid;
   gap: 1.5rem;
-  max-width: 52rem;
-  margin: 2rem auto 0;
+  min-width: 0;
 }
 
 .hub-sidebar section {
@@ -424,4 +381,27 @@ button:focus-visible {
   gap: 0.5rem;
   margin: 1rem 0 0;
   padding-left: 1.25rem;
+}
+
+.hub-sidebar a {
+  color: #0b69a3;
+  text-decoration: none;
+}
+
+.hub-sidebar a:hover,
+.hub-sidebar a:focus-visible,
+.document-name:hover,
+.document-name:focus-visible {
+  text-decoration: underline;
+}
+
+.document-name {
+  color: #0b69a3;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .hub-layout {
+    grid-template-columns: 1fr;
+  }
 }

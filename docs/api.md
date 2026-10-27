@@ -152,8 +152,9 @@ do `DocumentResponse` e os metadados operacionais do Hub:
 Os quatro estados públicos (`PENDING`, `PROCESSING`, `COMPLETED` e `FAILED`) podem
 aparecer na coleção. Quando não houver documentos, o backend responde `200 OK` com
 `[]`; a mensagem `Nenhum documento encontrado` é responsabilidade do frontend. A
-ordenação da faixa lateral do Hub é feita no cliente por `updatedAt` decrescente, com
-fallback para `createdAt`.
+Na coluna lateral do Hub, “Atividade” mostra no máximo os cinco documentos mais recentes
+e “Atenção” mostra no máximo os cinco documentos `FAILED` mais recentes. Ambas usam
+`updatedAt` decrescente, com fallback para `createdAt`.
 
 ## `POST /documents/batch-download`
 
@@ -266,6 +267,19 @@ nem retornar credenciais, bucket ou `objectKey` ao cliente.
 | Status diferente de `COMPLETED` | `409` | `DOCUMENT_CONTENT_NOT_AVAILABLE` |
 | Storage indisponível | `503` | `DOCUMENT_STORAGE_UNAVAILABLE` |
 | Falha inesperada | `500` | código genérico |
+
+## `GET /documents/{documentId}/preview`
+
+Retorna o conteúdo binário do documento para visualização inline, usado pelo preview de
+PDF na página de acompanhamento. O documento precisa estar em `COMPLETED` e segue as
+mesmas regras de disponibilidade, streaming e erros de `GET /documents/{documentId}/content`.
+
+Em caso de sucesso, responde `200 OK` com `Content-Type`, `Content-Length` e
+`Cache-Control: no-store` equivalentes ao endpoint de download, mas usa:
+
+- `Content-Disposition: inline` usando `originalFilename`.
+
+O endpoint de download continua usando `Content-Disposition: attachment`.
 
 ## `DELETE /documents/{documentId}`
 

@@ -7,102 +7,100 @@
     </p>
   </header>
 
-  <nav class="hub-navigation" aria-label="Navegação de documentos">
-    <a routerLink="/documents/new">Enviar documento</a>
-    <a routerLink="/documents">Ver documentos</a>
-  </nav>
+  <div class="hub-layout">
+    <div class="hub-main">
+      <section class="hub-upload" aria-labelledby="hub-upload-title">
+        <p class="eyebrow">Novo envio</p>
+        <h2 id="hub-upload-title">Envie um documento</h2>
+        <label
+          class="drop-zone"
+          [class.is-active]="isDragActive"
+          [class.is-disabled]="hasActiveAction()"
+          role="button"
+          tabindex="0"
+          for="hub-document-file-input"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+          (keydown.enter)="openFilePicker(fileInput, $event)"
+          (keydown.space)="openFilePicker(fileInput, $event)"
+        >
+          <span class="drop-zone-title">Arraste um arquivo para cá</span>
+          <span class="drop-zone-hint">ou selecione um arquivo do seu dispositivo</span>
+          <span class="drop-zone-action">Selecionar arquivo</span>
+          <input
+            id="hub-document-file-input"
+            type="file"
+            #fileInput
+            [disabled]="hasActiveAction()"
+            (change)="onFileInputChange($event)"
+          />
+        </label>
 
-  <section class="hub-upload" aria-labelledby="hub-upload-title">
-    <p class="eyebrow">Novo envio</p>
-    <h2 id="hub-upload-title">Envie um documento</h2>
-    <label
-      class="drop-zone"
-      [class.is-active]="isDragActive"
-      [class.is-disabled]="hasActiveAction()"
-      role="button"
-      tabindex="0"
-      for="hub-document-file-input"
-      (dragover)="onDragOver($event)"
-      (dragleave)="onDragLeave($event)"
-      (drop)="onDrop($event)"
-      (keydown.enter)="openFilePicker(fileInput, $event)"
-      (keydown.space)="openFilePicker(fileInput, $event)"
-    >
-      <span class="drop-zone-title">Arraste um arquivo para cá</span>
-      <span class="drop-zone-hint">ou selecione um arquivo do seu dispositivo</span>
-      <span class="drop-zone-action">Selecionar arquivo</span>
-      <input
-        id="hub-document-file-input"
-        type="file"
-        #fileInput
-        [disabled]="hasActiveAction()"
-        (change)="onFileInputChange($event)"
-      />
-    </label>
+        @if (selectedFile) {
+          <p class="selected-file">Arquivo selecionado: {{ selectedFile.name }}</p>
+        }
 
-    @if (selectedFile) {
-      <p class="selected-file">Arquivo selecionado: {{ selectedFile.name }}</p>
-    }
+        @if (validationError) {
+          <p class="feedback feedback-error" role="alert">{{ validationError }}</p>
+        }
 
-    @if (validationError) {
-      <p class="feedback feedback-error" role="alert">{{ validationError }}</p>
-    }
+        @if (uploadError) {
+          <p class="feedback feedback-error" role="alert">{{ uploadError.message }}</p>
+        }
 
-    @if (uploadError) {
-      <p class="feedback feedback-error" role="alert">{{ uploadError.message }}</p>
-    }
+        @if (uploadInProgress) {
+          <p class="upload-progress" aria-live="polite">Enviando arquivo: {{ uploadProgress }}%</p>
+        }
 
-    @if (uploadInProgress) {
-      <p class="upload-progress" aria-live="polite">Enviando arquivo: {{ uploadProgress }}%</p>
-    }
-
-    <div class="upload-actions">
-      <button type="button" [disabled]="!selectedFile || !!validationError || uploadInProgress" (click)="submit()">
-        {{ uploadError ? 'Tentar enviar novamente' : 'Enviar documento' }}
-      </button>
-      <button type="button" [disabled]="!selectedFile || uploadInProgress" (click)="clearFile()">
-        Limpar
-      </button>
-    </div>
-  </section>
-
-  <section class="hub-document-list" aria-labelledby="hub-document-list-title">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">Visão geral</p>
-        <h2 id="hub-document-list-title">Todos os documentos</h2>
-      </div>
-      @if (!isLoading && !listError) {
-        <span>{{ documents.length }} {{ documents.length === 1 ? 'documento' : 'documentos' }}</span>
-      }
-    </div>
-
-    @if (isLoading) {
-      <section class="hub-state" aria-live="polite" aria-busy="true">
-        <p>Carregando documentos...</p>
+        <div class="upload-actions">
+          <button type="button" [disabled]="!selectedFile || !!validationError || uploadInProgress" (click)="submit()">
+            {{ uploadError ? 'Tentar enviar novamente' : 'Enviar documento' }}
+          </button>
+          <button type="button" [disabled]="!selectedFile || uploadInProgress" (click)="clearFile()">
+            Limpar
+          </button>
+        </div>
       </section>
-    } @else if (listError) {
-      <section class="hub-state hub-state-error" role="alert" aria-live="assertive">
-        <p>{{ listError.message }}</p>
-        <button type="button" (click)="loadDocuments()">Tentar novamente</button>
-      </section>
-    } @else if (documents.length === 0) {
-      <section class="hub-state" aria-live="polite">
-        <p>Nenhum documento encontrado.</p>
-        <p>Quando você enviar um documento, ele aparecerá nesta lista.</p>
-      </section>
-    } @else {
-      @if (actionError) {
-        <p class="feedback feedback-error" role="alert" aria-live="assertive">
-          {{ actionError.message }}
-        </p>
-      }
-      <ul class="document-list">
-        @for (document of documents; track document.id) {
-          <li>
-            <span class="document-name">{{ document.originalFilename }}</span>
-            <span class="document-status">
-              @switch (document.status) {
+
+      <section class="hub-document-list" aria-labelledby="hub-document-list-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Visão geral</p>
+            <h2 id="hub-document-list-title">Todos os documentos</h2>
+          </div>
+          @if (!isLoading && !listError) {
+            <span>{{ documents.length }} {{ documents.length === 1 ? 'documento' : 'documentos' }}</span>
+          }
+        </div>
+
+        @if (isLoading) {
+          <section class="hub-state" aria-live="polite" aria-busy="true">
+            <p>Carregando documentos...</p>
+          </section>
+        } @else if (listError) {
+          <section class="hub-state hub-state-error" role="alert" aria-live="assertive">
+            <p>{{ listError.message }}</p>
+            <button type="button" (click)="loadDocuments()">Tentar novamente</button>
+          </section>
+        } @else if (documents.length === 0) {
+          <section class="hub-state" aria-live="polite">
+            <p>Nenhum documento encontrado.</p>
+            <p>Quando você enviar um documento, ele aparecerá nesta lista.</p>
+          </section>
+        } @else {
+          <ul class="document-list">
+            @for (document of documents; track document.id) {
+              <li>
+                <a
+                  class="document-card"
+                  [routerLink]="['/documents', document.id]"
+                  [attr.title]="document.originalFilename"
+                  [attr.aria-label]="'Ver detalhes de ' + document.originalFilename"
+                >
+                  <span class="document-name">{{ document.originalFilename }}</span>
+                  <span class="document-status">
+                    @switch (document.status) {
                 @case ('COMPLETED') {
                   <span class="state-icon state-completed" aria-hidden="true">✓</span>
                   <span class="visually-hidden">Concluído</span>
@@ -123,44 +121,19 @@
                   <span class="state-icon state-unknown" aria-hidden="true">?</span>
                   <span class="visually-hidden">Estado não reconhecido</span>
                 }
-              }
-              <span>{{ document.status }}</span>
-            </span>
-            <div class="document-actions">
-              @if (document.status === 'COMPLETED') {
-                <button
-                  type="button"
-                  [disabled]="hasActiveAction()"
-                  (click)="downloadDocument(document)"
-                >
-                  {{ downloadingDocumentId === document.id ? 'Baixando...' : 'Baixar' }}
-                </button>
-              }
-              @if (canRetry(document)) {
-                <button
-                  type="button"
-                  [disabled]="hasActiveAction()"
-                  (click)="retryDocument(document)"
-                >
-                  {{ retryingDocumentId === document.id ? 'Tentando...' : 'Tentar novamente' }}
-                </button>
-              }
-              <button
-                type="button"
-                [disabled]="hasActiveAction()"
-                (click)="requestDelete(document)"
-              >
-                {{ deletingDocumentId === document.id ? 'Excluindo...' : 'Excluir' }}
-              </button>
-            </div>
-          </li>
+                    }
+                    <span>{{ document.status }}</span>
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
         }
-      </ul>
-    }
-  </section>
+      </section>
+    </div>
 
-  <aside class="hub-sidebar" aria-label="Resumo dos documentos">
-    <section aria-labelledby="recent-documents-title">
+    <aside class="hub-sidebar" aria-label="Resumo dos documentos">
+      <section aria-labelledby="recent-documents-title">
       <p class="eyebrow">Atividade</p>
       <h2 id="recent-documents-title">Últimos cinco documentos</h2>
       @if (isLoading) {
@@ -172,13 +145,15 @@
       } @else {
         <ul>
           @for (document of recentDocuments(); track document.id) {
-            <li>{{ document.originalFilename }}</li>
+            <li>
+              <a [routerLink]="['/documents', document.id]">{{ document.originalFilename }}</a>
+            </li>
           }
         </ul>
       }
     </section>
 
-    <section aria-labelledby="failed-documents-title">
+      <section aria-labelledby="failed-documents-title">
       <p class="eyebrow">Atenção</p>
       <h2 id="failed-documents-title">Documentos com falha</h2>
       @if (!isLoading && !listError && failedDocuments().length === 0) {
@@ -186,35 +161,14 @@
       } @else if (!isLoading && !listError) {
         <ul>
           @for (document of failedDocuments(); track document.id) {
-            <li>{{ document.originalFilename }}</li>
+            <li>
+              <a [routerLink]="['/documents', document.id]">{{ document.originalFilename }}</a>
+            </li>
           }
         </ul>
       }
-    </section>
-  </aside>
+      </section>
+    </aside>
+  </div>
 
-  @if (pendingDeletion; as documentToDelete) {
-    <section
-      class="confirmation-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="delete-dialog-title"
-      cdkTrapFocus
-    >
-      <div class="confirmation-dialog">
-        <p class="eyebrow">Confirmação necessária</p>
-        <h2 id="delete-dialog-title">Excluir documento definitivamente?</h2>
-        <p>
-          O documento <strong>{{ documentToDelete.originalFilename }}</strong> e seu conteúdo serão
-          removidos sem possibilidade de recuperação.
-        </p>
-        <div class="dialog-actions">
-          <button type="button" (click)="cancelDelete()">Cancelar</button>
-          <button #confirmDeleteButton type="button" (click)="confirmDelete()">
-            Excluir definitivamente
-          </button>
-        </div>
-      </div>
-    </section>
-  }
 </main>

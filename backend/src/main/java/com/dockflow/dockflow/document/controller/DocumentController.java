@@ -134,11 +134,22 @@ public class DocumentController {
 
     @GetMapping("/{documentId}/content")
     public ResponseEntity<StreamingResponseBody> downloadDocument(@PathVariable UUID documentId) {
-        DocumentDownload download = documentService.download(documentId);
+        return streamDocument(documentService.download(documentId), ContentDisposition.attachment());
+    }
+
+    @GetMapping("/{documentId}/preview")
+    public ResponseEntity<StreamingResponseBody> previewDocument(@PathVariable UUID documentId) {
+        return streamDocument(documentService.download(documentId), ContentDisposition.inline());
+    }
+
+    private ResponseEntity<StreamingResponseBody> streamDocument(
+        DocumentDownload download,
+        ContentDisposition.Builder disposition
+    ) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.parseMediaType(download.contentType()));
         headers.setContentLength(download.sizeBytes());
-        headers.setContentDisposition(ContentDisposition.attachment()
+        headers.setContentDisposition(disposition
             .filename(download.originalFilename())
             .build());
         headers.setCacheControl("no-store");

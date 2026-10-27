@@ -38,6 +38,11 @@ export class DocumentApiService {
     });
   }
 
+  previewContentUrl(documentId: string): string {
+    const encodedDocumentId = encodeURIComponent(documentId);
+    return `${this.documentsUrl}/${encodedDocumentId}/preview`;
+  }
+
   delete(documentId: string): Observable<void> {
     const encodedDocumentId = encodeURIComponent(documentId);
     return this.http.delete<void>(`${this.documentsUrl}/${encodedDocumentId}`);

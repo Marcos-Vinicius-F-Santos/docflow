@@ -400,6 +400,26 @@ class DocumentControllerTest {
     }
 
     @Test
+    void shouldStreamCompletedDocumentInlineForPreview() throws Exception {
+        UUID id = UUID.randomUUID();
+        byte[] bytes = "%PDF-1.7 preview".getBytes(StandardCharsets.UTF_8);
+        when(documentService.download(id)).thenReturn(new DocumentDownload(
+            new ByteArrayInputStream(bytes),
+            bytes.length,
+            "application/pdf",
+            "document.pdf"
+        ));
+
+        mockMvc.perform(get("/documents/{documentId}/preview", id))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes(bytes))
+            .andExpect(header().string("Content-Type", "application/pdf"))
+            .andExpect(header().string("Content-Length", String.valueOf(bytes.length)))
+            .andExpect(header().string("Content-Disposition", "inline; filename=\"document.pdf\""))
+            .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
+    @Test
     void shouldMapDownloadContentNotFoundToTheDownloadContract() throws Exception {
         UUID id = UUID.randomUUID();
         when(documentService.download(id)).thenThrow(new DocumentContentNotFoundException(id));

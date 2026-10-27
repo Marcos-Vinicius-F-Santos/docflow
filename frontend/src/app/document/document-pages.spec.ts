@@ -110,6 +110,12 @@ describe('DocumentDetailPage', () => {
   let fixture: ComponentFixture<DocumentDetailPage>;
   let router: { navigate: ReturnType<typeof vi.fn> };
   let poller: { observe: ReturnType<typeof vi.fn> };
+  let documentApi: {
+    download: ReturnType<typeof vi.fn>;
+    retry: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    previewContentUrl: ReturnType<typeof vi.fn>;
+  };
 
   const response = (status: DocumentResponse['status']): DocumentResponse => ({
     id: 'doc-123',
@@ -127,6 +133,12 @@ describe('DocumentDetailPage', () => {
   async function createDetail(observed: Observable<DocumentResponse>): Promise<void> {
     router = { navigate: vi.fn(() => Promise.resolve(true)) };
     poller = { observe: vi.fn(() => observed) };
+    documentApi = {
+      download: vi.fn(),
+      retry: vi.fn(),
+      delete: vi.fn(),
+      previewContentUrl: vi.fn((documentId: string) => `/api/documents/${documentId}/preview`),
+    };
 
     await TestBed.configureTestingModule({
       imports: [DocumentDetailPage],
@@ -136,6 +148,7 @@ describe('DocumentDetailPage', () => {
           useValue: { paramMap: of(convertToParamMap({ documentId: 'doc-123' })) },
         },
         { provide: DocumentStatusPollerService, useValue: poller },
+        { provide: DocumentApiService, useValue: documentApi },
         { provide: Router, useValue: router },
       ],
     }).compileComponents();
@@ -175,7 +188,77 @@ describe('DocumentDetailPage', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('FAILED');
     expect(text).toContain('O processamento não foi concluído');
-    expect(text).toContain('não oferece reprocessamento');
+    expect(text).toContain('Tentar novamente');
+  });
+
+  it('shows completed actions and a PDF preview on the tracking page', async () => {
+    await createDetail(of(response('COMPLETED')));
+
+    expect(fixture.nativeElement.textContent).toContain('Baixar');
+    expect(fixture.nativeElement.textContent).toContain('Excluir');
+    expect(fixture.nativeElement.querySelector('iframe')?.getAttribute('src')).toBe(
+      '/api/documents/doc-123/preview',
+    );
+    expect(documentApi.previewContentUrl).toHaveBeenCalledWith('doc-123');
+  });
+
+  it('downloads the completed document using the server filename', async () => {
+    await createDetail(of(response('COMPLETED')));
+    const blob = new Blob(['document'], { type: 'application/pdf' });
+    documentApi.download.mockReturnValue(
+      of(new HttpResponse({
+        body: blob,
+        status: 200,
+        headers: new (await import('@angular/common/http')).HttpHeaders({
+          'Content-Disposition': 'attachment; filename="server-name.pdf"',
+        }),
+      })),
+    );
+    const createObjectURL = vi.fn(() => 'blob:document');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    fixture.componentInstance.downloadDocument();
+
+    expect(documentApi.download).toHaveBeenCalledWith('doc-123');
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:document');
+
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('requires confirmation before deleting and navigates to the Hub after success', async () => {
+    await createDetail(of(response('COMPLETED')));
+    documentApi.delete.mockReturnValue(of(void 0));
+
+    fixture.componentInstance.requestDelete();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(documentApi.delete).not.toHaveBeenCalled();
+
+    fixture.componentInstance.cancelDelete();
+    expect(documentApi.delete).not.toHaveBeenCalled();
+
+    fixture.componentInstance.requestDelete();
+    fixture.componentInstance.confirmDelete();
+    expect(documentApi.delete).toHaveBeenCalledWith('doc-123');
+    expect(router.navigate).toHaveBeenCalledWith(['/']);
+  });
+
+  it('retries an eligible failed document from the tracking page', async () => {
+    const failed = response('FAILED');
+    await createDetail(of(failed));
+    documentApi.retry.mockReturnValue(
+      of(new HttpResponse({ body: { ...failed, status: 'PROCESSING' }, status: 202 })),
+    );
+
+    fixture.componentInstance.retryDocument();
+
+    expect(documentApi.retry).toHaveBeenCalledWith('doc-123');
+    expect(fixture.componentInstance.document?.status).toBe('PROCESSING');
   });
 
   it('presents an operational error with a manual retry action', async () => {
@@ -372,12 +455,8 @@ describe('DocumentListPage', () => {
 });
 
 describe('document routes', () => {
-  it('keeps the list route ahead of the existing upload and detail routes', () => {
-    expect(documentRoutes.map((route) => route.path)).toEqual([
-      'documents',
-      'documents/new',
-      'documents/:documentId',
-    ]);
+  it('keeps only the document tracking route', () => {
+    expect(documentRoutes.map((route) => route.path)).toEqual(['documents/:documentId']);
   });
 });
 

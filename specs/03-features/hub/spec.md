@@ -12,8 +12,9 @@ os documentos já enviados, a fila de documentos pendentes, os últimos cinco en
 as falhas e as ações de download disponíveis.
 
 O hub deve concentrar o dropbox para um novo arquivo e a visão geral dos documentos,
-preservando as rotas existentes de upload, acompanhamento por identificador, listagem,
-download individual e exclusão individual.
+mantendo o acompanhamento por identificador a partir dos documentos exibidos no próprio
+Hub, com download e exclusão na página de acompanhamento. A listagem deve usar blocos compactos,
+com o nome truncado e navegar para o acompanhamento ao clicar.
 
 Referência visual: wireframe fornecido pelo usuário. A imagem orienta a composição
 geral — header, faixa lateral, dropbox e área central — mas não define dimensões,
@@ -21,17 +22,18 @@ tipografia ou estilos finais.
 
 ## 2. Como funciona hoje
 
-- A rota `/` redireciona para `/documents/new`.
-- `/documents/new` exibe o upload de um arquivo por seleção ou arraste, valida o
-  arquivo localmente e envia `POST /documents` como `multipart/form-data`.
-- Depois de um upload aceito, o frontend navega para `/documents/:documentId`, que
-  consulta o documento e acompanha `PENDING`/`PROCESSING` até `COMPLETED` ou `FAILED`.
-- `/documents` lista todos os documentos retornados por `GET /documents`, mantendo a
-  coleção inteira no frontend.
+- A rota `/` exibe o Hub como tela inicial.
+- O Hub concentra o upload de um arquivo por seleção ou arraste, valida o arquivo
+  localmente e envia `POST /documents` como `multipart/form-data`.
+- O Hub lista todos os documentos retornados por `GET /documents`; cada documento
+  oferece acesso ao acompanhamento em `/documents/:documentId`.
+- As rotas `/documents` e `/documents/new` não fazem mais parte da navegação do
+  produto. O acompanhamento por identificador continua disponível a partir de um
+  documento listado no Hub.
 - A listagem atual permite download individual de documentos `COMPLETED` e exclusão
   individual com confirmação explícita.
-- As rotas `/documents/new`, `/documents` e `/documents/:documentId` já existem e
-  devem continuar acessíveis depois da entrada do hub.
+- A rota `/documents/:documentId` continua disponível para acompanhamento; não há
+  tela separada de listagem ou upload.
 - O backend não possui autenticação, vínculo de documento a usuário nem endpoint
   específico para tentar novamente um documento `FAILED`.
 
@@ -51,10 +53,9 @@ O SISTEMA DEVE apresentar um header com o nome do aplicativo DocFlow.
 ### FR-003
 
 QUANDO o Hub for exibido  
-O SISTEMA DEVE apresentar uma faixa lateral com informações simples sobre os
-documentos, incluindo uma seção com os últimos cinco documentos enviados e uma seção
-com todos os documentos no estado `FAILED`. O Hub não deve possuir uma seção própria
-de downloads.
+O SISTEMA DEVE apresentar uma coluna lateral com duas listas: “Atividade”, contendo no
+máximo os cinco documentos mais recentes, e “Atenção”, contendo no máximo os cinco
+documentos `FAILED` mais recentes. O Hub não deve possuir uma seção própria de downloads.
 
 ### FR-004
 
@@ -66,7 +67,8 @@ arquivo para iniciar um novo envio.
 
 QUANDO o usuário enviar um arquivo pelo dropbox do Hub  
 O SISTEMA DEVE reutilizar o fluxo de upload multipart existente, sem enviar credenciais
-ou acessar diretamente PostgreSQL, RabbitMQ ou MinIO pelo navegador.
+ou acessar diretamente PostgreSQL, RabbitMQ ou MinIO pelo navegador. Não deve existir
+uma tela ou opção de upload separada em `/documents/new`.
 
 ### FR-006
 
@@ -135,11 +137,9 @@ aceitação do reprocessamento assíncrono, mantendo o documento observável pel
 
 ### FR-016
 
-QUANDO o usuário acessar uma ação ou item do Hub que corresponda a uma funcionalidade
-existente  
-O SISTEMA DEVE manter o acesso às rotas `/documents/new`, `/documents` e
-`/documents/:documentId`, sem quebrar upload, acompanhamento, download individual ou
-exclusão individual.
+QUANDO o usuário selecionar um documento no Hub  
+O SISTEMA DEVE navegar para `/documents/:documentId`, sem exigir uma listagem ou tela de
+upload separada.
 
 ### FR-017
 
@@ -147,6 +147,22 @@ QUANDO a aplicação estiver sendo usada nesta fase sem login
 O SISTEMA DEVE tratar os documentos retornados pela API como pertencentes ao contexto
 único da instalação, sem exigir usuário autenticado ou associar documentos a um
 usuário.
+
+### FR-018
+
+QUANDO o Hub exibir um documento na lista central  
+O SISTEMA DEVE apresentar o documento em um bloco compacto, mostrar o início do nome com
+reticências quando necessário e fornecer um tooltip com o nome completo no hover.
+
+QUANDO o usuário clicar no bloco de um documento  
+O SISTEMA DEVE navegar para `/documents/:documentId` para que o acompanhamento seja
+exibido em uma página própria.
+
+### FR-019
+
+QUANDO o usuário estiver na página de acompanhamento de um documento `COMPLETED`  
+O SISTEMA DEVE disponibilizar download e exclusão, e exibir ao final da página um preview
+somente leitura quando o conteúdo for um PDF.
 
 ## 4. Regras de negócio
 
@@ -192,8 +208,9 @@ Quando `updatedAt` não estiver disponível, o Hub deve usar `createdAt` decresc
 
 ### BR-009
 
-A faixa lateral deve listar todos os documentos no estado `FAILED`, sem limitar a
-quantidade de falhas exibidas.
+A coluna lateral deve limitar “Atividade” aos cinco documentos mais recentes e
+“Atenção” aos cinco documentos `FAILED` mais recentes, usando `updatedAt` decrescente
+com fallback para `createdAt`.
 
 ### BR-010
 
@@ -250,15 +267,29 @@ A fila de exclusão deve ser durável, usar TTL de três horas e processar a rem
 forma idempotente. Se o usuário excluir o documento antes do vencimento, uma mensagem
 posterior para o mesmo documento deve ser confirmada sem recriar ou falhar o documento.
 
+### BR-019
+
+Os documentos da área central devem ser apresentados em blocos compactos. O nome exibido
+deve ser truncado visualmente quando necessário, mantendo o nome completo em tooltip. O
+clique no bloco deve navegar para `/documents/:documentId`, onde ficam os detalhes e as
+ações disponíveis.
+
+### BR-020
+
+A página de acompanhamento deve oferecer as ações de download e exclusão do documento.
+Para documentos `COMPLETED` cujo tipo seja `application/pdf`, deve exibir um preview
+somente leitura ao final da página, consumindo conteúdo servido inline pelo backend.
+
 ## 5. Critério de aceite
 
 ### AC-001 — caminho feliz do Hub
 
 Dado que a aplicação está disponível e existem documentos retornados por `GET /documents`  
 Quando o usuário acessar `/`  
-Então o sistema deve exibir o Hub com o nome DocFlow no header, a faixa lateral, o
-dropbox, a área central com todos os documentos disponíveis, os últimos cinco ordenados
-pela regra definida e todos os documentos `FAILED` na faixa lateral.
+Então o sistema deve exibir o Hub com o nome DocFlow no header, a coluna lateral com
+“Atividade” e “Atenção”, o dropbox e a área central com todos os documentos disponíveis.
+“Atividade” e “Atenção” devem conter no máximo cinco itens cada, pela regra de ordenação
+definida, sendo “Atenção” limitada aos `FAILED` mais recentes.
 
 ### AC-002 — caminho feliz do upload pelo Hub
 
@@ -313,13 +344,25 @@ Quando o usuário acessar o Hub
 Então o sistema deve exibir um estado de erro compreensível, não apresentar uma lista
 desatualizada como se fosse atual e oferecer uma forma de tentar novamente.
 
-### AC-009 — regressão das rotas existentes
+### AC-009 — acompanhamento a partir do Hub
 
-Dado que o Hub está configurado como tela inicial  
-Quando o usuário navegar para `/documents/new`, `/documents` ou
-`/documents/:documentId`  
-Então as telas e operações existentes devem continuar acessíveis e funcionando
-conforme seus contratos atuais.
+Dado que o Hub está configurado como tela inicial e existe um documento listado  
+Quando o usuário selecionar esse documento  
+Então o sistema deve navegar para `/documents/:documentId` e exibir seu acompanhamento.
+
+### AC-010 — blocos compactos e navegação
+
+Dado que o Hub exibe um documento em um bloco compacto  
+Quando o usuário clicar nesse bloco  
+Então o sistema deve navegar para `/documents/:documentId`, manter o nome completo no
+tooltip do bloco e exibir os metadados e status na página de acompanhamento.
+
+### AC-011 — ações e preview no acompanhamento
+
+Dado que existe um documento `COMPLETED` com tipo `application/pdf`  
+Quando o usuário abrir `/documents/:documentId`  
+Então o sistema deve exibir as opções de baixar e excluir, além de um preview somente
+leitura do PDF ao final da página.
 
 ## 6. Casos de erro / edge cases
 
@@ -344,7 +387,7 @@ conforme seus contratos atuais.
 - Login, autenticação, autorização, multi-tenant ou associação de documentos a usuário.
 - Criar histórico de usuários, contas ou permissões.
 - Busca textual, filtros, paginação, ordenação avançada e operações em lote.
-- Preview ou visualização inline do conteúdo.
+- Preview ou visualização inline de conteúdos que não sejam PDF.
 - Retry automático ou reprocessamento silencioso de documentos.
 - Alterar a política de retries RabbitMQ ou a reconciliação interna do backend.
 - Acessar diretamente PostgreSQL, RabbitMQ, MinIO ou seus SDKs pelo frontend.
@@ -352,8 +395,9 @@ conforme seus contratos atuais.
 
 ## 8. Suposições e perguntas abertas
 
-- [x] Decisão confirmada: o Hub substituirá `/documents/new` como destino da rota `/`.
-  As rotas `/documents/new`, `/documents` e `/documents/:documentId` serão preservadas.
+- [x] Decisão confirmada: o Hub é a tela inicial e concentra upload e listagem.
+  As rotas `/documents` e `/documents/new` não fazem parte do produto; somente
+  `/documents/:documentId` permanece como tela de acompanhamento acessada pelo Hub.
 - [x] Suposição: sem login, “todos os documentos” significa todos os documentos
   retornados pelo `GET /documents` da instalação atual.
 - [x] Suposição: `PENDING` e `PROCESSING` compartilham a indicação visual de refresh
@@ -361,8 +405,9 @@ conforme seus contratos atuais.
 - [x] Decisão: os últimos cinco documentos enviados serão ordenados por `updatedAt`
   decrescente; quando `updatedAt` não estiver disponível, será usado `createdAt`
   decrescente.
-- [x] Decisão: a faixa lateral exibirá todos os documentos `FAILED`, sem limitar a
-  quantidade de falhas recentes.
+- [x] Decisão adicional: “Atividade” mostra no máximo os últimos cinco documentos e
+  “Atenção” mostra no máximo os cinco documentos `FAILED` mais recentes, usando a mesma
+  ordenação por `updatedAt` e fallback para `createdAt`.
 - [x] Decisão: o Hub não terá uma seção própria de downloads. Documentos `COMPLETED`
   continuarão oferecendo download junto à ação do documento.
 - [x] Decisão: “tentar novamente” reprocessará o staging existente, somente mediante
@@ -397,15 +442,17 @@ conforme seus contratos atuais.
 ## 9. Definition of Done desta feature
 
 - [ ] A Spec foi revisada e aprovada por Marcos.
-- [ ] A rota `/` exibe o Hub e deixa de redirecionar diretamente para `/documents/new`.
+- [ ] A rota `/` exibe o Hub sem redirecionar para uma tela de upload separada.
 - [ ] Header, faixa lateral, dropbox e lista central estão implementados conforme o
   contrato aprovado.
 - [ ] Os quatro estados públicos possuem indicação visual correta.
 - [ ] O fluxo de upload existente funciona a partir do dropbox do Hub.
-- [ ] A listagem, o acompanhamento, o download individual e a exclusão individual
-  continuam funcionando.
-- [ ] A faixa lateral mostra os últimos cinco documentos pela ordenação aprovada e
-  todos os documentos `FAILED`, sem seção própria de downloads.
+- [ ] A listagem ocorre diretamente no Hub; o acompanhamento, o download individual e a
+  exclusão individual continuam funcionando a partir do documento selecionado.
+- [ ] Os documentos aparecem em blocos compactos com tooltip do nome completo e navegação
+  para uma página de acompanhamento com ações e preview PDF.
+- [ ] A coluna lateral mostra até cinco documentos em “Atividade” e até cinco documentos
+  `FAILED` recentes em “Atenção”, sem seção própria de downloads.
 - [ ] O endpoint `POST /documents/{documentId}/retry` e seus status de resposta foram
   implementados e testados.
 - [ ] A migration Flyway adiciona `falhas`, `isExcluded` e `exclusionScheduledAt` com

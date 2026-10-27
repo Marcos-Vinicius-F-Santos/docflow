@@ -82,11 +82,11 @@ exclusão e exclusão manual; os contratos existentes permanecem verdes.
 
 - [ ] T-016 [FR-001][FR-002][FR-016][FR-017] Criar a página Hub e trocar o destino da rota /.
   - Arquivos/módulos: frontend/src/app/hub/, app.routes.ts e app shell.
-  - Verificação: / abre o Hub; /documents/new, /documents e /documents/:documentId continuam acessíveis por navegação direta.
+  - Verificação: / abre o Hub; upload e listagem ocorrem no Hub; um item do Hub navega para /documents/:documentId.
 
 - [ ] T-017 [FR-003][FR-006] Implementar a faixa lateral sem seção própria de downloads.
   - Arquivos/módulos: página/template/estilos do Hub e DocumentApiService.
-  - Verificação: a lateral exibe os cinco documentos pela ordenação aprovada, todos os FAILED e nenhuma seção exclusiva de downloads.
+  - Verificação: a coluna lateral exibe até cinco documentos em Atividade, até cinco FAILED recentes em Atenção e nenhuma seção exclusiva de downloads.
 
 - [ ] T-018 [FR-004][FR-005][FR-010] Integrar o dropbox ao validador e ao upload multipart existentes.
   - Arquivos/módulos: Hub, DocumentFileValidator, DocumentApiService e componentes de upload existentes.
@@ -135,7 +135,7 @@ Hub, estados e ações estão corretos e rotas antigas não regrediram.
 
 - [ ] T-028 [FR-001][FR-002][FR-003][FR-004][FR-006][FR-007][FR-008][FR-009][FR-016][FR-017] Cobrir o componente Hub.
   - Arquivos/módulos: specs da página Hub e componentes auxiliares.
-  - Verificação: caminho feliz, lista vazia, falha de API, últimos cinco, todos FAILED, quatro estados, retry elegível/inelegível, permanência após upload e rotas existentes.
+  - Verificação: caminho feliz, lista vazia, falha de API, cinco recentes, cinco FAILED recentes, quatro estados, retry elegível/inelegível, permanência após upload e acompanhamento a partir do Hub.
 
 - [ ] T-029 [FR-001][FR-002][FR-003][FR-004][FR-005][FR-006][FR-007][FR-008][FR-009][FR-010][FR-011][FR-012][FR-013][FR-014][FR-015][FR-016][FR-017] Executar regressão ponta a ponta.
   - Arquivos/módulos: backend, frontend, PostgreSQL, RabbitMQ, MinIO, Compose e documentação de verificação.
@@ -156,7 +156,11 @@ migration e fila são verificadas e a regressão completa permanece verde.
 
 - [ ] T-032 [FR-001][FR-003][FR-004][FR-006][FR-007][FR-008][FR-009][FR-010][FR-012][FR-013][FR-014][FR-015][FR-016] Executar smoke test local e registrar evidências.
   - Arquivos/módulos: Compose, backend, frontend, PostgreSQL, RabbitMQ, MinIO e checklist de verificação.
-  - Verificação: rota inicial, upload, estados, falha inicial, retry, terceira falha, fila de exclusão, exclusão manual e regressão individual são observados.
+  - Verificação: rota inicial, upload/listagem no Hub, estados, falha inicial, retry, terceira falha, fila de exclusão, exclusão manual e acompanhamento individual são observados.
+
+- [ ] T-034 [FR-018][FR-019] Implementar blocos compactos, navegação para acompanhamento e preview PDF.
+  - Arquivos/módulos: frontend/src/app/hub/, frontend/src/app/document/pages/document-detail-page.*, testes do Hub e da página de acompanhamento, documentação de frontend e spec da feature.
+  - Verificação: nome truncado com tooltip completo, clique navega para /documents/:documentId, metadados/status e download, retry elegível, exclusão e preview PDF são exibidos conforme o estado.
 
 - [ ] T-033 [FR-001][FR-002][FR-003][FR-004][FR-005][FR-006][FR-007][FR-008][FR-009][FR-010][FR-011][FR-012][FR-013][FR-014][FR-015][FR-016][FR-017] Executar revisão final de convergência e obter aprovação.
   - Arquivos/módulos: Spec, plano, tarefas, ADR, migration, código, testes, documentação e rollback.
@@ -166,7 +170,7 @@ migration e fila são verificadas e a regressão completa permanece verde.
 
 - [ ] Busca, filtros, paginação e ordenação avançada da listagem.
 - [ ] Download em lote e exclusão em lote.
-- [ ] Preview, visualização inline, Range ou retomada de download.
+- [ ] Preview de formatos que não sejam PDF, visualização inline de outros conteúdos, Range ou retomada de download.
 - [ ] Login, autenticação, autorização, multi-tenant ou associação de documentos a usuário.
 - [ ] Retry automático, reprocessamento silencioso ou criação automática de novo arquivo.
 - [ ] Alteração da política de reconciliação RESULT_UNKNOWN ou dos retries internos do fluxo existente.

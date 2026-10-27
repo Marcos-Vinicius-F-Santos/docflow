@@ -6,8 +6,11 @@ Status: Aprovado
 ## 1. Resumo técnico
 
 O Hub será uma nova tela Angular em frontend/src/app/hub/, configurada como destino da
-rota /. Ele reutilizará os serviços e contratos de documentos existentes para upload,
-consulta, download e exclusão, mantendo as rotas atuais acessíveis.
+rota /. Ele concentrará upload e listagem, reutilizando os serviços e contratos de
+documentos existentes para consulta, acompanhamento, download e exclusão. A tela de
+listagem `/documents` e a tela de upload `/documents/new` deixam de fazer parte da
+navegação; o acompanhamento continuará em `/documents/:documentId`, acessado a partir
+de um documento do Hub.
 
 O backend receberá o comando POST /documents/{documentId}/retry, que reprocessará o
 staging existente após lock e validação do estado. O domínio persistirá falhas,
@@ -23,7 +26,7 @@ storage e frontend sem acesso direto à infraestrutura.
 
 | Componente/arquivo | Mudança | Risco |
 |---|---|---|
-| frontend/src/app/app.routes.ts | Fazer / carregar o Hub em vez de redirecionar para /documents/new; manter as três rotas de documentos. | Médio: pode quebrar navegação inicial ou links existentes. |
+| frontend/src/app/app.routes.ts | Fazer / carregar o Hub, remover as rotas /documents e /documents/new e manter o acompanhamento por identificador. | Médio: pode quebrar navegação inicial ou links antigos. |
 | frontend/src/app/document/document-api.service.ts | Adicionar chamada de retry e preservar upload, listagem, download e exclusão individuais. | Alto: erro de rota/status pode afetar o fluxo existente. |
 | frontend/src/app/document/document.models.ts | Expor os novos campos retornados pelo backend e os estados necessários ao Hub. | Médio: incompatibilidade de contrato TypeScript/JSON. |
 | frontend/src/app/document/pages/* | Reutilizar upload e ações existentes sem alterar seus contratos; ajustar somente integrações necessárias com o Hub. | Médio: regressão visual ou de navegação. |
@@ -86,8 +89,8 @@ is_excluded = true elegíveis por exclusion_scheduled_at.
 ### Fase 1 — Base
 
 1. Fechar a matriz FR/BR/AC → contrato → código → teste da Spec e registrar o baseline
-   das rotas /, /documents/new, /documents, /documents/:documentId, upload, download
-   e exclusão individual.
+   da rota /, do upload no Hub, do acompanhamento por identificador, download e
+   exclusão individual.
 2. Criar o ADR do retry e da fila de exclusão, incluindo lock, estados elegíveis,
    contador, isExcluded, exclusionScheduledAt, TTL, exclusão completa e mensagens
    tardias após exclusão manual.
@@ -140,20 +143,25 @@ fica alterado sem cobertura.
    sem fixar dimensões ou estilos não aprovados.
 3. Implementar o dropbox reutilizando o validador e o upload multipart existentes.
    Após sucesso, permanecer no Hub e atualizar a lista com o documento recebido.
-4. Carregar GET /documents e exibir todos os documentos, com estado vazio,
+4. Carregar GET /documents no próprio Hub e exibir todos os documentos, com estado vazio,
    carregamento, erro e nova tentativa de consulta.
-5. Exibir na lateral os cinco documentos ordenados por updatedAt decrescente, usando
-   createdAt como fallback, e todos os documentos FAILED.
+5. Exibir em uma coluna lateral “Atividade” com os cinco documentos mais recentes e
+   “Atenção” com os cinco documentos FAILED mais recentes, usando updatedAt decrescente
+   e createdAt como fallback.
 6. Exibir os indicadores dos estados: check verde para COMPLETED, refresh azul para
    PENDING/PROCESSING e X vermelho para FAILED.
 7. Integrar download individual para COMPLETED, retry explícito quando elegível e
    exclusão manual conforme os contratos existentes, sem criar uma seção própria de
    downloads.
-8. Garantir acessibilidade básica, foco, teclado, responsividade e coexistência das
-   rotas /documents/new, /documents e /documents/:documentId.
+8. Garantir acessibilidade básica, foco, teclado, responsividade e navegação do item do
+   Hub para `/documents/:documentId`.
+9. Renderizar os documentos em blocos compactos com tooltip do nome completo e exibir na
+   página de acompanhamento os metadados, status, download, retry elegível, exclusão e
+   preview somente leitura para PDFs concluídos.
 
 Gate da Fase 3: o Hub é a tela inicial, o caminho principal de upload funciona, os
-estados e ações estão claros e as rotas existentes continuam navegáveis.
+estados e ações estão claros, os detalhes abrem na rota de acompanhamento e o preview
+PDF é exibido para documentos concluídos.
 
 ### Fase 4 — Testes
 
@@ -172,8 +180,8 @@ estados e ações estão claros e as rotas existentes continuam navegáveis.
 6. Cobrir o serviço Angular com HttpTestingController para listagem, upload, retry,
    download, exclusão e erros.
 7. Cobrir o componente Hub com caminho feliz, lista vazia, falha de API, quatro estados,
-   ordenação lateral, permanência após upload, retry elegível/inelegível e regressão
-   das rotas existentes.
+   cinco documentos recentes, cinco FAILED recentes, permanência após upload, retry
+   elegível/inelegível e navegação para acompanhamento.
 8. Executar build e suíte completa do backend e frontend, seguida de smoke test local
    com PostgreSQL, RabbitMQ, MinIO, backend e frontend.
 
@@ -207,7 +215,7 @@ revisados; nenhum deploy é executado sem aprovação final.
 | Exclusão automática é irreversível e pode correr com exclusão manual. | Alta | Alto | Lock/idempotência, confirmação manual existente, consumidor tolerante a documento ausente e smoke test controlado. | Sim — ADR-006 ou novo ADR do Hub. |
 | Migration pode atribuir valores incorretos a documentos já existentes. | Média | Alto | Migration expand-only, defaults explícitos, teste PostgreSQL e rollback operacional sem remoção direta. | Não; procedimento de migration. |
 | Nova API de retry pode divergir do frontend ou expor detalhes de storage. | Média | Alto | Contrato HTTP antes do código, ProblemDetail estável e testes de controller/HTTP. | Não. |
-| Mudança da rota / pode quebrar links e o fluxo de upload atual. | Média | Médio | Preservar rotas antigas, testar deep links e manter acesso direto a /documents/new. | Não. |
+| Remoção das rotas /documents e /documents/new pode quebrar links antigos. | Média | Médio | Fazer o Hub concentrar listagem/upload, manter acompanhamento por identificador e testar deep links do Hub. | Não. |
 | Lista inteira no frontend pode crescer sem limite. | Média | Médio | Reutilizar o contrato atual nesta feature e manter paginação/filtros como feature separada. | Não. |
 
 ## 7. Perguntas abertas antes de começar

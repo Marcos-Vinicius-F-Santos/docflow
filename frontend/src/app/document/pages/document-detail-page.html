@@ -1,7 +1,7 @@
 <main class="detail-page">
   <button class="back-link" mat-button type="button" (click)="openNewUpload()">
     <mat-icon aria-hidden="true">←</mat-icon>
-    Novo documento
+    Voltar ao Hub
   </button>
 
   <section class="page-heading" aria-labelledby="detail-title">
@@ -78,18 +78,87 @@
 
     <app-document-status-panel [document]="document" />
 
+    @if (actionError) {
+      <p class="action-error" role="alert" aria-live="assertive">{{ actionError.message }}</p>
+    }
+
+    <section class="document-operations" aria-label="Operações do documento">
+      @if (document.status === 'COMPLETED') {
+        <button mat-stroked-button color="primary" type="button" [disabled]="hasActiveAction()" (click)="downloadDocument()">
+          <mat-icon aria-hidden="true">download</mat-icon>
+          {{ downloading ? 'Baixando...' : 'Baixar' }}
+        </button>
+      }
+      @if (canRetry(document)) {
+        <button mat-stroked-button type="button" [disabled]="hasActiveAction()" (click)="retryDocument()">
+          <mat-icon aria-hidden="true">refresh</mat-icon>
+          {{ retrying ? 'Tentando...' : 'Tentar novamente' }}
+        </button>
+      }
+      <button mat-stroked-button color="warn" type="button" [disabled]="hasActiveAction()" (click)="requestDelete()">
+        <mat-icon aria-hidden="true">delete</mat-icon>
+        {{ deleting ? 'Excluindo...' : 'Excluir' }}
+      </button>
+    </section>
+
     @if (document.status === 'FAILED') {
       <section class="next-action" aria-labelledby="failed-action-title">
         <div>
           <p class="eyebrow">Próximo passo</p>
           <h2 id="failed-action-title">O processamento não foi concluído</h2>
           <p>
-            Você pode consultar novamente o backend ou iniciar um novo upload. Esta interface não
-            oferece reprocessamento do documento existente.
+            @if (canRetry(document)) {
+              Você pode tentar novamente o processamento deste documento ou iniciar um novo upload.
+            } @else {
+              O limite de tentativas foi atingido. Inicie um novo upload para processar outro arquivo.
+            }
           </p>
         </div>
         <button mat-stroked-button type="button" (click)="openNewUpload()">Novo documento</button>
       </section>
     }
+
+    @if (previewUrl) {
+      <section class="pdf-preview" aria-labelledby="pdf-preview-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Conteúdo</p>
+            <h2 id="pdf-preview-title">Preview do PDF</h2>
+          </div>
+          <span>Somente leitura</span>
+        </div>
+        <iframe
+          class="pdf-preview-frame"
+          [src]="previewUrl"
+          title="Preview do documento PDF"
+          loading="lazy"
+        ></iframe>
+      </section>
+    }
+  }
+
+  @if (pendingDeletion; as documentToDelete) {
+    <section
+      class="confirmation-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+      cdkTrapFocus
+    >
+      <div class="confirmation-dialog">
+        <p class="eyebrow">Confirmação necessária</p>
+        <h2 id="delete-dialog-title">Excluir documento definitivamente?</h2>
+        <p>
+          O documento <strong>{{ documentToDelete.originalFilename }}</strong> e seu conteúdo serão
+          removidos sem possibilidade de recuperação.
+        </p>
+        <div class="detail-actions">
+          <button mat-stroked-button type="button" (click)="cancelDelete()">Cancelar</button>
+          <button #confirmDeleteButton mat-flat-button color="warn" type="button" (click)="confirmDelete()">
+            Excluir definitivamente
+          </button>
+        </div>
+      </div>
+    </section>
   }
 </main>

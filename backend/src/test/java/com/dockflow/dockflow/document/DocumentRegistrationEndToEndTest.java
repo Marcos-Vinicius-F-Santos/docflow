@@ -183,6 +183,14 @@ class DocumentRegistrationEndToEndTest {
                 "attachment; filename=\"completed.txt\""
             ));
 
+        mockMvc.perform(get("/documents/{documentId}/preview", completedId))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes(content))
+            .andExpect(header().string(
+                "Content-Disposition",
+                "inline; filename=\"completed.txt\""
+            ));
+
         mockMvc.perform(get("/documents/{documentId}/content", pendingId))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.errorCode").value("DOCUMENT_CONTENT_NOT_AVAILABLE"));

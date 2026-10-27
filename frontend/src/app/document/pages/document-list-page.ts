@@ -76,7 +76,7 @@ export class DocumentListPage {
   }
 
   openNewUpload(): void {
-    void this.router.navigate(['/documents/new']);
+    void this.router.navigate(['/']);
   }
 
   openDocument(document: DocumentResponse): void {
