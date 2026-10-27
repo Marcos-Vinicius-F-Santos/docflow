@@ -16,7 +16,10 @@ public final class DocumentMapper {
             document.getSizeBytes(),
             document.getStatus(),
             document.getCreatedAt(),
-            document.getUpdatedAt()
+            document.getUpdatedAt(),
+            document.getFailureCount(),
+            document.isExcluded(),
+            document.getExclusionScheduledAt()
         );
     }
     

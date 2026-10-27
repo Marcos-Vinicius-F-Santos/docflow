@@ -1,6 +1,7 @@
 package com.dockflow.dockflow.document.messaging.rabbitmq;
 
 import com.dockflow.dockflow.document.DocumentRepository;
+import com.dockflow.dockflow.document.application.DocumentDeletionPublisher;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
@@ -22,6 +23,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /** Declares the approved exchange, queues, retry delays and dead-letter route. */
 @Configuration(proxyBeanMethods = false)
@@ -63,17 +65,31 @@ public class DocumentStorageRabbitConfiguration {
     }
 
     @Bean
+    DocumentDeletionPublisher documentDeletionPublisher(
+        RabbitTemplate rabbitTemplate,
+        MessageConverter messageConverter
+    ) {
+        return new RabbitMqDocumentDeletionPublisher(
+            rabbitTemplate,
+            messageConverter,
+            DocumentStorageRabbitTopology.PROCESSING_TIMEOUT
+        );
+    }
+
+    @Bean
     DocumentStorageMessageConsumer documentStorageMessageConsumer(
         DocumentRepository documentRepository,
         DocumentStagingReader stagingReader,
         DocumentStagingRemover stagingRemover,
-        DocumentStorage documentStorage
+        DocumentStorage documentStorage,
+        Optional<DocumentDeletionPublisher> deletionPublisher
     ) {
         return new DocumentStorageMessageConsumer(
             documentRepository,
             stagingReader,
             stagingRemover,
-            documentStorage
+            documentStorage,
+            deletionPublisher
         );
     }
 
@@ -89,6 +105,22 @@ public class DocumentStorageRabbitConfiguration {
             messageConverter,
             DocumentStorageRabbitTopology.PROCESSING_TIMEOUT
         );
+    }
+
+    @Bean
+    DocumentDeletionMessageConsumer documentDeletionMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStorage documentStorage,
+        DocumentStagingRemover stagingRemover
+    ) {
+        return new DocumentDeletionMessageConsumer(documentRepository, documentStorage, stagingRemover);
+    }
+
+    @Bean
+    RabbitMqDocumentDeletionMessageHandler documentDeletionMessageHandler(
+        DocumentDeletionMessageConsumer consumer
+    ) {
+        return new RabbitMqDocumentDeletionMessageHandler(consumer);
     }
 
     @Bean
@@ -129,6 +161,74 @@ public class DocumentStorageRabbitConfiguration {
         return BindingBuilder.bind(documentStorageDeadLetterQueue)
             .to(documentStorageDeadLetterExchange)
             .with(DocumentStorageRabbitTopology.ROUTING_KEY);
+    }
+
+    @Bean
+    DirectExchange documentDeletionExchange() {
+        return new DirectExchange(DocumentStorageRabbitTopology.DELETION_EXCHANGE, true, false);
+    }
+
+    @Bean
+    DirectExchange documentDeletionDeadLetterExchange() {
+        return new DirectExchange(DocumentStorageRabbitTopology.DELETION_DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    @Bean
+    Queue documentDeletionDelayQueue() {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-message-ttl", DocumentStorageRabbitTopology.DELETION_DELAY.toMillis());
+        arguments.put("x-dead-letter-exchange", DocumentStorageRabbitTopology.DELETION_EXCHANGE);
+        arguments.put("x-dead-letter-routing-key", DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY);
+        return new Queue(
+            DocumentStorageRabbitTopology.DELETION_DELAY_QUEUE,
+            true,
+            false,
+            false,
+            arguments
+        );
+    }
+
+    @Bean
+    Binding documentDeletionDelayQueueBinding(
+        Queue documentDeletionDelayQueue,
+        DirectExchange documentDeletionExchange
+    ) {
+        return BindingBuilder.bind(documentDeletionDelayQueue)
+            .to(documentDeletionExchange)
+            .with(DocumentStorageRabbitTopology.DELETION_SCHEDULED_ROUTING_KEY);
+    }
+
+    @Bean
+    Queue documentDeletionRequestedQueue() {
+        return QueueBuilder.durable(DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE)
+            .deadLetterExchange(DocumentStorageRabbitTopology.DELETION_DEAD_LETTER_EXCHANGE)
+            .deadLetterRoutingKey(DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY)
+            .build();
+    }
+
+    @Bean
+    Binding documentDeletionRequestedQueueBinding(
+        Queue documentDeletionRequestedQueue,
+        DirectExchange documentDeletionExchange
+    ) {
+        return BindingBuilder.bind(documentDeletionRequestedQueue)
+            .to(documentDeletionExchange)
+            .with(DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY);
+    }
+
+    @Bean
+    Queue documentDeletionDeadLetterQueue() {
+        return QueueBuilder.durable(DocumentStorageRabbitTopology.DELETION_DEAD_LETTER_QUEUE).build();
+    }
+
+    @Bean
+    Binding documentDeletionDeadLetterQueueBinding(
+        Queue documentDeletionDeadLetterQueue,
+        DirectExchange documentDeletionDeadLetterExchange
+    ) {
+        return BindingBuilder.bind(documentDeletionDeadLetterQueue)
+            .to(documentDeletionDeadLetterExchange)
+            .with(DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY);
     }
 
     @Bean

@@ -18,6 +18,15 @@ public final class DocumentStorageRabbitTopology {
     public static final String MAIN_QUEUE = "docflow.document-storage.requested";
     public static final String DEAD_LETTER_EXCHANGE = "docflow.document-storage.dlx";
     public static final String DEAD_LETTER_QUEUE = "docflow.document-storage.dlq";
+    public static final int DELETION_MESSAGE_SCHEMA_VERSION = 1;
+    public static final String DELETION_EXCHANGE = "docflow.document-deletion";
+    public static final String DELETION_DELAY_QUEUE = "docflow.document-deletion.delay.3h";
+    public static final String DELETION_REQUESTED_QUEUE = "docflow.document-deletion.requested";
+    public static final String DELETION_SCHEDULED_ROUTING_KEY = "document.deletion.scheduled";
+    public static final String DELETION_REQUESTED_ROUTING_KEY = "document.deletion.requested";
+    public static final String DELETION_DEAD_LETTER_EXCHANGE = "docflow.document-deletion.dlx";
+    public static final String DELETION_DEAD_LETTER_QUEUE = "docflow.document-deletion.dlq";
+    public static final Duration DELETION_DELAY = Duration.ofHours(3);
     public static final int PREFETCH_COUNT = 1;
     public static final int MIN_CONCURRENCY = 1;
     public static final int MAX_CONCURRENCY = 1;

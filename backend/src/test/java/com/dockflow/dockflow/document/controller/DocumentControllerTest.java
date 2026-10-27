@@ -10,6 +10,9 @@ import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
 import com.dockflow.dockflow.document.exception.DocumentContentNotAvailableException;
 import com.dockflow.dockflow.document.exception.DocumentContentNotFoundException;
 import com.dockflow.dockflow.document.exception.DocumentContentStorageUnavailableException;
+import com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException;
+import com.dockflow.dockflow.document.exception.DocumentRetryStorageUnavailableException;
+import com.dockflow.dockflow.document.application.DocumentPublicationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -272,6 +275,72 @@ class DocumentControllerTest {
 
         mockMvc.perform(get("/documents/{documentId}", id))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldAcceptRetryAndReturnTheProcessingDocumentWithoutStorageDetails() throws Exception {
+        UUID id = UUID.randomUUID();
+        Document failed = new Document(id, "failed.txt", "text/plain", 4);
+        failed.markFailed(java.time.Instant.parse("2026-10-27T12:00:00Z"));
+        failed.startRetryProcessing();
+        when(documentService.retry(id)).thenReturn(failed);
+
+        mockMvc.perform(post("/documents/{documentId}/retry", id))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.id").value(id.toString()))
+            .andExpect(jsonPath("$.status").value("PROCESSING"))
+            .andExpect(jsonPath("$.falhas").value(1))
+            .andExpect(jsonPath("$.isExcluded").value(false))
+            .andExpect(jsonPath("$.objectKey").doesNotExist())
+            .andExpect(jsonPath("$.bucket").doesNotExist());
+
+        verify(documentService).retry(id);
+    }
+
+    @Test
+    void shouldMapRetryNotFoundToProblemDetail() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.retry(id)).thenThrow(new DocumentNotFoundException(id));
+
+        mockMvc.perform(post("/documents/{documentId}/retry", id))
+            .andExpect(status().isNotFound())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_NOT_FOUND"));
+    }
+
+    @Test
+    void shouldMapRetryIneligibleToConflictProblemDetail() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.retry(id)).thenThrow(new DocumentRetryNotEligibleException(id));
+
+        mockMvc.perform(post("/documents/{documentId}/retry", id))
+            .andExpect(status().isConflict())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_RETRY_NOT_ELIGIBLE"));
+    }
+
+    @Test
+    void shouldMapRetryStorageFailureToServiceUnavailableProblemDetail() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.retry(id)).thenThrow(
+            new DocumentRetryStorageUnavailableException(id, new IllegalStateException("offline"))
+        );
+
+        mockMvc.perform(post("/documents/{documentId}/retry", id))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_STORAGE_UNAVAILABLE"));
+    }
+
+    @Test
+    void shouldMapUnconfirmedRetryPublicationToServiceUnavailable() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(documentService.retry(id)).thenThrow(new DocumentPublicationException(id, "not confirmed"));
+
+        mockMvc.perform(post("/documents/{documentId}/retry", id))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.errorCode").value("DOCUMENT_RETRY_UNAVAILABLE"));
     }
 
     @Test

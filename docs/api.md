@@ -43,6 +43,61 @@ se refere à parte `file`.
 | `DOCUMENT_METADATA_NOT_ALLOWED` | `metadata` | Partes adicionais ou metadata duplicada não são aceitas. |
 | `DOCUMENT_CONTENT_READ_FAILED` | — | Falha ao abrir ou ler o conteúdo. |
 
+## `POST /documents/{documentId}/retry`
+
+Solicita explicitamente o reprocessamento assíncrono de um documento `FAILED`. A
+requisição não recebe corpo e não aceita `objectKey`, `contentReference`, bucket,
+credenciais ou qualquer outra referência de storage do cliente. O backend adquire lock
+do documento, valida a elegibilidade e reutiliza o staging determinístico já existente
+(`staging/{documentId}`); não é criado um novo arquivo ou documento.
+
+O retry só é elegível quando o documento está em `FAILED`, `falhas < 3`,
+`isExcluded: false` e o staging está disponível. Uma solicitação concorrente enquanto o
+documento estiver em `PROCESSING` não publica uma segunda mensagem efetiva.
+
+Quando a publicação do reprocessamento é confirmada, a resposta é `202 Accepted` com
+`Content-Type: application/json` e o documento já observado em `PROCESSING`:
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "originalFilename": "document.pdf",
+  "contentType": "application/pdf",
+  "sizeBytes": 12345,
+  "status": "PROCESSING",
+  "createdAt": "2026-10-27T12:00:00Z",
+  "updatedAt": "2026-10-27T12:05:00Z",
+  "falhas": 1,
+  "isExcluded": false,
+  "exclusionScheduledAt": null
+}
+```
+
+As propriedades de retry fazem parte da resposta de documento do Hub. `objectKey`,
+bucket, credenciais e detalhes do SDK não fazem parte de nenhuma resposta HTTP.
+
+O contador representa o ciclo atual de processamento. A falha efetiva do processamento
+inicial conta como a primeira falha; clicar em retry não incrementa `falhas`. Quando o
+processamento termina com sucesso, `falhas` volta para `0`, `isExcluded` permanece
+`false` e `exclusionScheduledAt` volta para `null`.
+
+| Situação | HTTP | `errorCode` |
+|---|---:|---|
+| Documento inexistente | `404 Not Found` | `DOCUMENT_NOT_FOUND` |
+| Documento não está `FAILED`, já está marcado para exclusão, atingiu três falhas ou há outra condição de elegibilidade | `409 Conflict` | `DOCUMENT_RETRY_NOT_ELIGIBLE` |
+| Staging/storage indisponível ou staging ausente | `503 Service Unavailable` | `DOCUMENT_STORAGE_UNAVAILABLE` |
+| Publicação do retry sem confirmação | `503 Service Unavailable` | `DOCUMENT_RETRY_UNAVAILABLE` |
+
+Quando a terceira falha efetiva é persistida, o documento continua em `FAILED`, recebe
+`falhas: 3`, `isExcluded: true` e `exclusionScheduledAt` igual ao prazo de três horas.
+O backend publica uma mensagem persistente de exclusão atrasada e o Hub não oferece uma
+quarta tentativa. O usuário ainda pode chamar a exclusão individual antes do prazo;
+essa operação é imediata e segue o contrato de `DELETE /documents/{documentId}`.
+
+Erros usam `Content-Type: application/problem+json` e o formato `ProblemDetail`, com
+`status`, `title`, `detail` operacional e `errorCode`. A mensagem não deve expor
+bucket, `objectKey`, credenciais, stack trace ou detalhes do fornecedor.
+
 ## Operação do recebimento
 
 O tamanho máximo aprovado é `52428800` bytes. O tamanho persistido é contado durante a
@@ -70,58 +125,35 @@ bucket, da mensageria e do rollback está em
 
 ## `GET /documents`
 
-Retorna a coleção paginada de documentos persistidos. O endpoint oficial continua sendo
-`GET /documents`; busca, filtros, paginação e ordenação são query parameters da mesma
-operação.
+Retorna uma coleção simples de `DocumentResponse` com todos os documentos persistidos
+no contexto da instalação. Busca, filtros e paginação não fazem parte do contrato desta
+feature.
 
-### Query parameters
-
-| Parâmetro | Tipo | Regra |
-|---|---|---|
-| `search` | string | Busca parcial (`contains`) case-insensitive em `originalFilename`. |
-| `status` | string | Filtra por um dos estados públicos: `PENDING`, `PROCESSING`, `COMPLETED` ou `FAILED`. |
-| `contentType` | string | Filtra pelo `contentType` persistido. |
-| `createdFrom` / `createdTo` | ISO-8601 UTC | Intervalo semiaberto `[from,to)` sobre `createdAt`. |
-| `updatedFrom` / `updatedTo` | ISO-8601 UTC | Intervalo semiaberto `[from,to)` sobre `updatedAt`. |
-| `page` | inteiro | Página 1-based; padrão `1`. O tamanho é fixo em `10`. |
-| `sort` | string | Campo e direção, no formato `campo,direcao`. Todos os sete campos são permitidos. |
-
-Parâmetros vazios são ignorados. A combinação de filtros preenchidos usa AND. A
-ordenação padrão é `updatedAt,desc`, com desempate por `createdAt,desc` e `id,asc`.
-O backend converte a página pública 1-based para o índice interno utilizado pelo
-Spring Data.
-
-Em caso de sucesso, responde `200 OK` com um envelope JSON. Cada item de `content` usa
-os sete campos do `DocumentResponse`:
+Em caso de sucesso, responde `200 OK` com uma coleção JSON. Cada item inclui os campos
+do `DocumentResponse` e os metadados operacionais do Hub:
 
 ```json
-{
-  "content": [
-    {
-      "id": "00000000-0000-0000-0000-000000000000",
-      "originalFilename": "document.pdf",
-      "contentType": "application/pdf",
-      "sizeBytes": 12345,
-      "status": "COMPLETED",
-      "createdAt": "2026-09-20T12:00:00Z",
-      "updatedAt": "2026-09-20T12:00:01Z"
-    }
-  ],
-  "page": 1,
-  "size": 10,
-  "totalElements": 1,
-  "totalPages": 1
-}
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "originalFilename": "document.pdf",
+    "contentType": "application/pdf",
+    "sizeBytes": 12345,
+    "status": "COMPLETED",
+    "createdAt": "2026-09-20T12:00:00Z",
+    "updatedAt": "2026-09-20T12:00:01Z",
+    "falhas": 0,
+    "isExcluded": false,
+    "exclusionScheduledAt": null
+  }
+]
 ```
 
 Os quatro estados públicos (`PENDING`, `PROCESSING`, `COMPLETED` e `FAILED`) podem
 aparecer na coleção. Quando não houver documentos, o backend responde `200 OK` com
-`content: []`, `totalElements: 0` e `totalPages: 0`; a mensagem
-`Nenhum documento encontrado` é responsabilidade do frontend.
-
-Parâmetros inválidos respondem `400 Bad Request` em `application/problem+json`, com
-`errorCode: DOCUMENT_QUERY_INVALID`. Uma falha inesperada responde com `500 Internal
-Server Error` no mesmo envelope, sem expor detalhes de PostgreSQL ou infraestrutura.
+`[]`; a mensagem `Nenhum documento encontrado` é responsabilidade do frontend. A
+ordenação da faixa lateral do Hub é feita no cliente por `updatedAt` decrescente, com
+fallback para `createdAt`.
 
 ## `POST /documents/batch-download`
 

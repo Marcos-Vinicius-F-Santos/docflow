@@ -119,6 +119,12 @@ public class DocumentController {
         return DocumentMapper.toResponse(document);
     }
 
+    @PostMapping("/{documentId}/retry")
+    public ResponseEntity<DocumentResponse> retryDocument(@PathVariable UUID documentId) {
+        Document document = documentService.retry(documentId);
+        return ResponseEntity.accepted().body(DocumentMapper.toResponse(document));
+    }
+
     @GetMapping
     public List<DocumentResponse> findDocuments() {
         return documentService.findAll().stream()

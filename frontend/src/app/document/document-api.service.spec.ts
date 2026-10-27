@@ -16,6 +16,9 @@ describe('DocumentApiService', () => {
     status: 'PENDING',
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
+    falhas: 0,
+    isExcluded: false,
+    exclusionScheduledAt: null,
   };
 
   beforeEach(() => {
@@ -178,5 +181,45 @@ describe('DocumentApiService', () => {
     request.flush(null);
 
     expect(completed).toBe(true);
+  });
+
+  it.each([404, 503])('propagates delete HTTP status %s', (status) => {
+    let errorStatus: number | undefined;
+
+    service.delete('doc-123').subscribe({
+      error: (error: { status: number }) => (errorStatus = error.status),
+    });
+
+    const request = http.expectOne('/api/documents/doc-123');
+    request.flush({ errorCode: 'DOCUMENT_DELETE_ERROR' }, { status, statusText: 'Error' });
+
+    expect(errorStatus).toBe(status);
+  });
+
+  it('posts an encoded retry request without a body and returns the 202 response', () => {
+    let result: import('@angular/common/http').HttpResponse<DocumentResponse> | undefined;
+
+    service.retry('doc/123').subscribe((response) => (result = response));
+
+    const request = http.expectOne('/api/documents/doc%2F123/retry');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toBeNull();
+    request.flush(documentResponse, { status: 202, statusText: 'Accepted' });
+
+    expect(result?.status).toBe(202);
+    expect(result?.body).toEqual(documentResponse);
+  });
+
+  it.each([404, 409, 503])('propagates retry HTTP status %s', (status) => {
+    let errorStatus: number | undefined;
+
+    service.retry('doc-123').subscribe({
+      error: (error: { status: number }) => (errorStatus = error.status),
+    });
+
+    const request = http.expectOne('/api/documents/doc-123/retry');
+    request.flush({ errorCode: 'DOCUMENT_RETRY_NOT_ELIGIBLE' }, { status, statusText: 'Error' });
+
+    expect(errorStatus).toBe(status);
   });
 });

@@ -2,6 +2,7 @@ package com.dockflow.dockflow.document.messaging.rabbitmq;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.MessageListenerContainer;
+import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpoint;
@@ -56,6 +57,26 @@ class DocumentStorageRabbitConfigurationTest {
         assertEquals(1, field(container, "concurrentConsumers"));
         assertEquals(1, field(container, "maxConcurrentConsumers"));
         assertEquals(1, field(container, "prefetchCount"));
+    }
+
+    @Test
+    void shouldDeclareTheDurableThreeHourDeletionTopology() {
+        DocumentStorageRabbitConfiguration configuration = new DocumentStorageRabbitConfiguration();
+
+        Queue delay = configuration.documentDeletionDelayQueue();
+        Queue requested = configuration.documentDeletionRequestedQueue();
+        Queue deadLetter = configuration.documentDeletionDeadLetterQueue();
+
+        assertEquals(DocumentStorageRabbitTopology.DELETION_DELAY_QUEUE, delay.getName());
+        assertEquals(true, delay.isDurable());
+        assertEquals(DocumentStorageRabbitTopology.DELETION_DELAY.toMillis(),
+            delay.getArguments().get("x-message-ttl"));
+        assertEquals(DocumentStorageRabbitTopology.DELETION_EXCHANGE,
+            delay.getArguments().get("x-dead-letter-exchange"));
+        assertEquals(DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY,
+            delay.getArguments().get("x-dead-letter-routing-key"));
+        assertEquals(DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE, requested.getName());
+        assertEquals(DocumentStorageRabbitTopology.DELETION_DEAD_LETTER_QUEUE, deadLetter.getName());
     }
 
     private int field(Object target, String name) throws Exception {

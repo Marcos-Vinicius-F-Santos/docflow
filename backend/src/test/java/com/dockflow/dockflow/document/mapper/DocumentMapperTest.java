@@ -33,5 +33,8 @@ class DocumentMapperTest {
         assertEquals(DocumentStatus.COMPLETED, response.status());
         assertEquals(createdAt, response.createdAt());
         assertEquals(updatedAt, response.updatedAt());
+        assertEquals(0L, response.falhas());
+        assertEquals(false, response.isExcluded());
+        assertEquals(null, response.exclusionScheduledAt());
     }
 }

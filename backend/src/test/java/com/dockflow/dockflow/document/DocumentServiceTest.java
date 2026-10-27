@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
 import com.dockflow.dockflow.document.application.DocumentContentValidator;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
+import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
+import com.dockflow.dockflow.document.application.DocumentStorageRequestPublisher;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 
 import org.mockito.Mock;
@@ -39,6 +41,10 @@ public class DocumentServiceTest {
     private DocumentStorage documentStorage;
     @Mock
     private DocumentStagingRemover documentStagingRemover;
+    @Mock
+    private DocumentStagingReader documentStagingReader;
+    @Mock
+    private DocumentStorageRequestPublisher requestPublisher;
     private DocumentService documentService;
 
     @BeforeEach
@@ -167,6 +173,159 @@ public class DocumentServiceTest {
         when(documentRepository.findAll()).thenThrow(new IllegalStateException("database unavailable"));
 
         assertThrows(IllegalStateException.class, () -> documentService.findAll());
+    }
+
+    @Test
+    void shouldRetryAFailedDocumentUsingItsExistingStagingReference() throws Exception {
+        Document document = new Document("document.txt", "text/plain", 4);
+        document.markFailed(java.time.Instant.parse("2026-10-27T12:00:00Z"));
+        when(documentRepository.findRetryCandidateForUpdate(document.getId()))
+            .thenReturn(java.util.Optional.of(document));
+        when(documentStagingReader.open("staging/" + document.getId()))
+            .thenReturn(new DocumentStagingReader.StagedContent(
+                new java.io.ByteArrayInputStream(new byte[] {1}),
+                1,
+                "text/plain"
+            ));
+
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            java.util.Optional.empty(),
+            java.util.Optional.of(documentStagingReader),
+            java.util.Optional.of(requestPublisher),
+            java.util.Optional.empty(),
+            java.util.Optional.empty()
+        );
+
+        Document retried = service.retry(document.getId());
+
+        assertEquals(DocumentStatus.PROCESSING, retried.getStatus());
+        assertEquals(1L, retried.getFailureCount());
+        verify(documentRepository).saveAndFlush(document);
+        verify(requestPublisher).publish(new DocumentStorageRequestPublisher.DocumentStorageRequested(
+            1,
+            document.getId(),
+            "documents/" + document.getId(),
+            "staging/" + document.getId(),
+            4,
+            "text/plain"
+        ));
+    }
+
+    @Test
+    void shouldRejectRetryWhenTheDocumentIsNotEligible() {
+        Document document = new Document("document.txt", "text/plain", 4);
+        when(documentRepository.findRetryCandidateForUpdate(document.getId()))
+            .thenReturn(java.util.Optional.empty());
+        when(documentRepository.findById(document.getId()))
+            .thenReturn(java.util.Optional.of(document));
+
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            java.util.Optional.empty(),
+            java.util.Optional.of(documentStagingReader),
+            java.util.Optional.of(requestPublisher),
+            java.util.Optional.empty(),
+            java.util.Optional.empty()
+        );
+
+        assertThrows(
+            com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException.class,
+            () -> service.retry(document.getId())
+        );
+        verifyNoInteractions(documentStagingReader, requestPublisher);
+    }
+
+    @Test
+    void shouldRejectRetryWhenTheDocumentIsAlreadyProcessing() {
+        Document document = new Document("document.txt", "text/plain", 4);
+        document.startProcessing();
+        when(documentRepository.findRetryCandidateForUpdate(document.getId()))
+            .thenReturn(java.util.Optional.empty());
+        when(documentRepository.findById(document.getId()))
+            .thenReturn(java.util.Optional.of(document));
+
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            java.util.Optional.empty(),
+            java.util.Optional.of(documentStagingReader),
+            java.util.Optional.of(requestPublisher),
+            java.util.Optional.empty(),
+            java.util.Optional.empty()
+        );
+
+        assertThrows(
+            com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException.class,
+            () -> service.retry(document.getId())
+        );
+        verifyNoInteractions(documentStagingReader, requestPublisher);
+    }
+
+    @Test
+    void shouldRejectRetryWhenStagingCannotBeOpened() {
+        Document document = new Document("document.txt", "text/plain", 4);
+        document.markFailed(java.time.Instant.parse("2026-10-27T12:00:00Z"));
+        when(documentRepository.findRetryCandidateForUpdate(document.getId()))
+            .thenReturn(java.util.Optional.of(document));
+        when(documentStagingReader.open("staging/" + document.getId()))
+            .thenThrow(new com.dockflow.dockflow.document.storage.DocumentStorageException(
+                com.dockflow.dockflow.document.storage.DocumentStorageException.FailureType.NOT_FOUND,
+                "staging missing"
+            ));
+
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            java.util.Optional.empty(),
+            java.util.Optional.of(documentStagingReader),
+            java.util.Optional.of(requestPublisher),
+            java.util.Optional.empty(),
+            java.util.Optional.empty()
+        );
+
+        assertThrows(
+            com.dockflow.dockflow.document.exception.DocumentRetryStorageUnavailableException.class,
+            () -> service.retry(document.getId())
+        );
+        assertEquals(DocumentStatus.FAILED, document.getStatus());
+        verifyNoInteractions(requestPublisher);
+    }
+
+    @Test
+    void shouldLeaveRetryPublicationFailureToTransactionRollback() {
+        Document document = new Document("document.txt", "text/plain", 4);
+        document.markFailed(java.time.Instant.parse("2026-10-27T12:00:00Z"));
+        when(documentRepository.findRetryCandidateForUpdate(document.getId()))
+            .thenReturn(java.util.Optional.of(document));
+        when(documentStagingReader.open("staging/" + document.getId()))
+            .thenReturn(new DocumentStagingReader.StagedContent(
+                new java.io.ByteArrayInputStream(new byte[] {1}),
+                1,
+                "text/plain"
+            ));
+        org.mockito.Mockito.doThrow(new com.dockflow.dockflow.document.application.DocumentPublicationException(
+            document.getId(),
+            "publication not confirmed"
+        )).when(requestPublisher).publish(org.mockito.ArgumentMatchers.any());
+
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            java.util.Optional.empty(),
+            java.util.Optional.of(documentStagingReader),
+            java.util.Optional.of(requestPublisher),
+            java.util.Optional.empty(),
+            java.util.Optional.empty()
+        );
+
+        assertThrows(
+            com.dockflow.dockflow.document.application.DocumentPublicationException.class,
+            () -> service.retry(document.getId())
+        );
+        verify(documentRepository).saveAndFlush(document);
     }
 
     @ParameterizedTest

@@ -42,4 +42,13 @@ export class DocumentApiService {
     const encodedDocumentId = encodeURIComponent(documentId);
     return this.http.delete<void>(`${this.documentsUrl}/${encodedDocumentId}`);
   }
+
+  retry(documentId: string): Observable<HttpResponse<DocumentResponse>> {
+    const encodedDocumentId = encodeURIComponent(documentId);
+    return this.http.post<DocumentResponse>(
+      `${this.documentsUrl}/${encodedDocumentId}/retry`,
+      null,
+      { observe: 'response' },
+    );
+  }
 }

@@ -25,6 +25,9 @@ const documentPageContractFixture: DocumentPageContractFixture = {
       status: 'COMPLETED',
       createdAt: '2026-09-20T09:00:00Z',
       updatedAt: '2026-09-20T09:05:00Z',
+      falhas: 0,
+      isExcluded: false,
+      exclusionScheduledAt: null,
     },
     {
       id: '00000000-0000-0000-0000-000000000002',
@@ -34,6 +37,9 @@ const documentPageContractFixture: DocumentPageContractFixture = {
       status: 'PROCESSING',
       createdAt: '2026-09-19T09:00:00Z',
       updatedAt: '2026-09-20T08:00:00Z',
+      falhas: 0,
+      isExcluded: false,
+      exclusionScheduledAt: null,
     },
     {
       id: '00000000-0000-0000-0000-000000000003',
@@ -43,6 +49,9 @@ const documentPageContractFixture: DocumentPageContractFixture = {
       status: 'PENDING',
       createdAt: '2026-09-18T09:00:00Z',
       updatedAt: '2026-09-18T09:00:00Z',
+      falhas: 0,
+      isExcluded: false,
+      exclusionScheduledAt: null,
     },
     {
       id: '00000000-0000-0000-0000-000000000004',
@@ -52,6 +61,9 @@ const documentPageContractFixture: DocumentPageContractFixture = {
       status: 'FAILED',
       createdAt: '2026-09-17T09:00:00Z',
       updatedAt: '2026-09-17T09:10:00Z',
+      falhas: 2,
+      isExcluded: false,
+      exclusionScheduledAt: null,
     },
   ],
   page: 1,
@@ -89,7 +101,7 @@ const batchDownloadContractFixture = {
 };
 
 describe('document feature contract fixtures', () => {
-  it('covers the seven document fields and all public statuses', () => {
+  it('covers the ten document fields and all public statuses', () => {
     expect(documentPageContractFixture.size).toBe(10);
     expect(documentPageContractFixture.content).toHaveLength(4);
     expect(new Set(documentPageContractFixture.content.map((document) => document.status))).toEqual(
@@ -105,6 +117,9 @@ describe('document feature contract fixtures', () => {
         'status',
         'createdAt',
         'updatedAt',
+        'falhas',
+        'isExcluded',
+        'exclusionScheduledAt',
       ]);
     }
   });

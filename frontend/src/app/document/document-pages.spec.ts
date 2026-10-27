@@ -24,6 +24,9 @@ describe('DocumentUploadPage', () => {
     status: 'PENDING',
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
+    falhas: 0,
+    isExcluded: false,
+    exclusionScheduledAt: null,
   };
 
   beforeEach(async () => {
@@ -116,6 +119,9 @@ describe('DocumentDetailPage', () => {
     status,
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
+    falhas: status === 'FAILED' ? 1 : 0,
+    isExcluded: false,
+    exclusionScheduledAt: null,
   });
 
   async function createDetail(observed: Observable<DocumentResponse>): Promise<void> {
@@ -201,6 +207,9 @@ describe('DocumentListPage', () => {
     status,
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
+    falhas: status === 'FAILED' ? 1 : 0,
+    isExcluded: false,
+    exclusionScheduledAt: null,
   });
 
   async function createPage(documents: DocumentResponse[] = [response('doc-1', 'PENDING')]): Promise<void> {

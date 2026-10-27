@@ -13,6 +13,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -24,6 +25,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -135,15 +137,24 @@ class RabbitMqRealIntegrationTest {
         when(consumer.process(null)).thenThrow(
             new DocumentStorageMessageValidationException("invalid message")
         );
-        rabbitTemplate.convertAndSend(
+        CorrelationData correlation = new CorrelationData("invalid-message-" + UUID.randomUUID());
+        Message invalidMessage = new Message(
+            "invalid-json".getBytes(StandardCharsets.UTF_8),
+            new MessageProperties()
+        );
+        rabbitTemplate.send(
             DocumentStorageRabbitTopology.EXCHANGE,
             DocumentStorageRabbitTopology.ROUTING_KEY,
-            "invalid-json"
+            invalidMessage,
+            correlation
         );
+        CorrelationData.Confirm confirmation = correlation.getFuture().get(3, TimeUnit.SECONDS);
+        assertNotNull(confirmation);
+        assertTrue(confirmation.isAck());
 
         var connection = connectionFactory.createConnection();
         Channel channel = connection.createChannel(false);
-        GetResponse received = channel.basicGet(DocumentStorageRabbitTopology.MAIN_QUEUE, false);
+        GetResponse received = awaitDelivery(channel, DocumentStorageRabbitTopology.MAIN_QUEUE, Duration.ofSeconds(3));
         assertNotNull(received);
 
         MessageProperties properties = new MessageProperties();
@@ -160,6 +171,19 @@ class RabbitMqRealIntegrationTest {
         assertNotNull(deadLettered);
         channel.close();
         connection.close();
+    }
+
+    private GetResponse awaitDelivery(Channel channel, String queue, Duration timeout) throws Exception {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        GetResponse received;
+        do {
+            received = channel.basicGet(queue, false);
+            if (received != null) {
+                return received;
+            }
+            Thread.sleep(25);
+        } while (System.nanoTime() < deadline);
+        return null;
     }
 
     private Message delivery(long tag) {

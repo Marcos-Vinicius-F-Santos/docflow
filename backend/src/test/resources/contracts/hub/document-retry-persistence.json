@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "migration": "V6__add_document_retry_and_deletion_metadata.sql",
+  "existingDocumentDefaults": {
+    "failureCount": 0,
+    "isExcluded": false,
+    "exclusionScheduledAt": null
+  },
+  "records": [
+    {
+      "name": "failed-and-retryable",
+      "status": "FAILED",
+      "failureCount": 1,
+      "isExcluded": false,
+      "exclusionScheduledAt": null
+    },
+    {
+      "name": "failed-and-scheduled-for-deletion",
+      "status": "FAILED",
+      "failureCount": 3,
+      "isExcluded": true,
+      "exclusionScheduledAt": "2026-10-27T15:00:00Z"
+    }
+  ],
+  "invariants": [
+    "failureCount >= 0",
+    "isExcluded = false OR failureCount >= 3",
+    "exclusionScheduledAt IS NULL OR isExcluded = true"
+  ]
+}

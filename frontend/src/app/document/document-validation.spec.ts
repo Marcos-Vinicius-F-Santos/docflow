@@ -124,6 +124,9 @@ describe('mapDocumentError', () => {
       status: 'COMPLETED',
       createdAt: '2026-09-19T20:00:00Z',
       updatedAt: '2026-09-19T20:00:00Z',
+      falhas: 0,
+      isExcluded: false,
+      exclusionScheduledAt: null,
     };
 
     expect(documentListMessage([])).toBe('Nenhum documento encontrado');

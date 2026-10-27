@@ -3,6 +3,7 @@ package com.dockflow.dockflow.document.messaging.rabbitmq;
 import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentRepository;
 import com.dockflow.dockflow.document.DocumentStatus;
+import com.dockflow.dockflow.document.application.DocumentDeletionPublisher;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Optional;
 
 /**
  * Provider-neutral processing core for a document-storage message.
@@ -28,6 +30,7 @@ public class DocumentStorageMessageConsumer {
     private final DocumentStagingReader stagingReader;
     private final DocumentStagingRemover stagingRemover;
     private final DocumentStorage documentStorage;
+    private final Optional<DocumentDeletionPublisher> deletionPublisher;
     private final Clock clock;
 
     public DocumentStorageMessageConsumer(
@@ -36,7 +39,17 @@ public class DocumentStorageMessageConsumer {
         DocumentStagingRemover stagingRemover,
         DocumentStorage documentStorage
     ) {
-        this(documentRepository, stagingReader, stagingRemover, documentStorage, Clock.systemUTC());
+        this(documentRepository, stagingReader, stagingRemover, documentStorage, Optional.empty(), Clock.systemUTC());
+    }
+
+    public DocumentStorageMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStagingReader stagingReader,
+        DocumentStagingRemover stagingRemover,
+        DocumentStorage documentStorage,
+        Optional<DocumentDeletionPublisher> deletionPublisher
+    ) {
+        this(documentRepository, stagingReader, stagingRemover, documentStorage, deletionPublisher, Clock.systemUTC());
     }
 
     public DocumentStorageMessageConsumer(
@@ -46,10 +59,22 @@ public class DocumentStorageMessageConsumer {
         DocumentStorage documentStorage,
         Clock clock
     ) {
+        this(documentRepository, stagingReader, stagingRemover, documentStorage, Optional.empty(), clock);
+    }
+
+    public DocumentStorageMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStagingReader stagingReader,
+        DocumentStagingRemover stagingRemover,
+        DocumentStorage documentStorage,
+        Optional<DocumentDeletionPublisher> deletionPublisher,
+        Clock clock
+    ) {
         this.documentRepository = documentRepository;
         this.stagingReader = stagingReader;
         this.stagingRemover = stagingRemover;
         this.documentStorage = documentStorage;
+        this.deletionPublisher = deletionPublisher;
         this.clock = clock;
     }
 
@@ -137,7 +162,19 @@ public class DocumentStorageMessageConsumer {
     }
 
     private void markFailed(Document document) {
-        document.markFailed();
+        boolean schedulesDeletion = !document.isExcluded()
+            && document.getFailureCount() == Document.MAX_PROCESSING_FAILURES - 1;
+        document.markFailed(Instant.now(clock));
+        if (schedulesDeletion) {
+            documentRepository.saveAndFlush(document);
+            deletionPublisher.ifPresent(publisher -> publisher.publish(
+                new DocumentDeletionPublisher.DocumentDeletionScheduled(
+                    DocumentStorageRabbitTopology.DELETION_MESSAGE_SCHEMA_VERSION,
+                    document.getId()
+                )
+            ));
+            return;
+        }
         documentRepository.save(document);
     }
 

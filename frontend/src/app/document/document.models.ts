@@ -8,6 +8,9 @@ export interface DocumentResponse {
   status: DocumentStatus;
   createdAt: string;
   updatedAt: string;
+  falhas: number;
+  isExcluded: boolean;
+  exclusionScheduledAt: string | null;
 }
 
 export type DocumentOperation = 'list' | 'download' | 'delete' | 'general';

@@ -13,7 +13,10 @@ public record DocumentResponse(
     long sizeBytes,
     DocumentStatus status,
     Instant createdAt,
-    Instant updatedAt
+    Instant updatedAt,
+    long falhas,
+    boolean isExcluded,
+    Instant exclusionScheduledAt
 
 ) {
 

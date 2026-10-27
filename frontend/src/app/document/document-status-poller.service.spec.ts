@@ -17,6 +17,9 @@ describe('DocumentStatusPollerService', () => {
     status,
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
+    falhas: status === 'FAILED' ? 1 : 0,
+    isExcluded: false,
+    exclusionScheduledAt: null,
   });
 
   beforeEach(() => {

@@ -10,8 +10,10 @@ import com.dockflow.dockflow.document.exception.DocumentContentStorageUnavailabl
 import com.dockflow.dockflow.document.exception.DocumentDeletionException;
 import com.dockflow.dockflow.document.exception.DocumentDeletionStorageUnavailableException;
 import com.dockflow.dockflow.document.exception.DocumentNotFoundException;
+import com.dockflow.dockflow.document.exception.DocumentRetryStorageUnavailableException;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStaging;
+import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
 
@@ -28,6 +30,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentContentValidator contentValidator;
     private final Optional<DocumentStaging> documentStaging;
+    private final Optional<DocumentStagingReader> documentStagingReader;
     private final Optional<DocumentStorageRequestPublisher> requestPublisher;
     private final Optional<DocumentStorage> documentStorage;
     private final Optional<DocumentStagingRemover> documentStagingRemover;
@@ -36,6 +39,7 @@ public class DocumentService {
         this.documentRepository = documentRepository;
         this.contentValidator = new DocumentContentValidator();
         this.documentStaging = Optional.empty();
+        this.documentStagingReader = Optional.empty();
         this.requestPublisher = Optional.empty();
         this.documentStorage = Optional.empty();
         this.documentStagingRemover = Optional.empty();
@@ -51,13 +55,13 @@ public class DocumentService {
             documentRepository,
             contentValidator,
             documentStaging,
+            Optional.empty(),
             requestPublisher,
             Optional.empty(),
             Optional.empty()
         );
     }
 
-    @Autowired
     public DocumentService(
         DocumentRepository documentRepository,
         DocumentContentValidator contentValidator,
@@ -66,9 +70,31 @@ public class DocumentService {
         Optional<DocumentStorage> documentStorage,
         Optional<DocumentStagingRemover> documentStagingRemover
     ) {
+        this(
+            documentRepository,
+            contentValidator,
+            documentStaging,
+            Optional.empty(),
+            requestPublisher,
+            documentStorage,
+            documentStagingRemover
+        );
+    }
+
+    @Autowired
+    public DocumentService(
+        DocumentRepository documentRepository,
+        DocumentContentValidator contentValidator,
+        Optional<DocumentStaging> documentStaging,
+        Optional<DocumentStagingReader> documentStagingReader,
+        Optional<DocumentStorageRequestPublisher> requestPublisher,
+        Optional<DocumentStorage> documentStorage,
+        Optional<DocumentStagingRemover> documentStagingRemover
+    ) {
         this.documentRepository = documentRepository;
         this.contentValidator = contentValidator;
         this.documentStaging = documentStaging;
+        this.documentStagingReader = documentStagingReader;
         this.requestPublisher = requestPublisher;
         this.documentStorage = documentStorage;
         this.documentStagingRemover = documentStagingRemover;
@@ -138,6 +164,58 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public List<Document> findAll() {
         return documentRepository.findAll();
+    }
+
+    /**
+     * Reuses the deterministic staging reference for one explicit retry. The
+     * row lock and transaction make the state transition and publisher-confirm
+     * failure atomic from PostgreSQL's point of view.
+     */
+    @Transactional
+    public Document retry(UUID id) {
+        if (id == null) {
+            throw new IllegalArgumentException("documentId cannot be null");
+        }
+
+        Document document = documentRepository.findRetryCandidateForUpdate(id)
+            .orElseGet(() -> documentRepository.findById(id)
+                .orElseThrow(() -> new DocumentNotFoundException(id)));
+
+        if (document.getStatus() != DocumentStatus.FAILED
+            || document.getFailureCount() >= Document.MAX_PROCESSING_FAILURES
+            || document.isExcluded()) {
+            throw new com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException(id);
+        }
+
+        String contentReference = "staging/" + id;
+        try (DocumentStagingReader.StagedContent ignored = documentStagingReader
+            .orElseThrow(() -> new DocumentRetryStorageUnavailableException(id, null))
+            .open(contentReference)) {
+            // Opening the provider-neutral staging object is the existence check.
+        } catch (DocumentStorageException exception) {
+            throw new DocumentRetryStorageUnavailableException(id, exception);
+        } catch (java.io.IOException exception) {
+            throw new DocumentRetryStorageUnavailableException(id, exception);
+        }
+
+        document.startRetryProcessing();
+        documentRepository.saveAndFlush(document);
+
+        String objectKey = document.getObjectKey() == null || document.getObjectKey().isBlank()
+            ? "documents/" + id
+            : document.getObjectKey();
+        requestPublisher
+            .orElseThrow(() -> new IllegalStateException("Document storage request publisher is not configured"))
+            .publish(new DocumentStorageRequestPublisher.DocumentStorageRequested(
+                1,
+                id,
+                objectKey,
+                contentReference,
+                document.getSizeBytes(),
+                document.getContentType()
+            ));
+
+        return document;
     }
 
     @Transactional(readOnly = true)

@@ -26,10 +26,16 @@ O DocFlow permite:
   documento para sucesso.
 - listar documentos em qualquer estado persistido;
 - baixar o conteúdo final de documentos `COMPLETED`;
+- tentar novamente, de forma explícita, o processamento de documentos `FAILED` usando
+  o staging existente;
+- marcar para exclusão atrasada documentos que atingirem três falhas, com remoção
+  idempotente após três horas;
 - excluir definitivamente documentos após confirmação explícita no frontend.
 
-O frontend Angular permite enviar, acompanhar, listar, baixar e excluir documentos. A
-execução local está descrita em [`docs/frontend.md`](docs/frontend.md).
+O frontend Angular permite enviar, acompanhar, listar, baixar, tentar novamente e
+excluir documentos. A execução local está descrita em [`docs/frontend.md`](docs/frontend.md)
+e o procedimento operacional completo está em
+[`docs/document-registration-operations.md`](docs/document-registration-operations.md).
 
 ## Stack
 
@@ -145,6 +151,20 @@ Limite máximo do conteúdo: `52.428.800` bytes (50 MiB).
 curl http://localhost:8080/documents/{documentId}
 ```
 
+### Tentar novamente um documento falho
+
+O retry reutiliza `staging/{documentId}` e não recebe conteúdo ou referências de
+infraestrutura do cliente:
+
+```bash
+curl -i -X POST http://localhost:8080/documents/{documentId}/retry
+```
+
+`202 Accepted` significa que a nova solicitação foi publicada. O documento deve ser
+acompanhado até `COMPLETED` ou `FAILED`. A terceira falha define `isExcluded: true`,
+preenche `exclusionScheduledAt` para três horas à frente e remove a possibilidade de
+uma quarta tentativa pelo Hub.
+
 ### Listar documentos
 
 ```bash
@@ -200,8 +220,8 @@ Os testes e o build do frontend estão documentados em
 
 O smoke test oficial está descrito em [`docs/document-registration-operations.md`](docs/document-registration-operations.md):
 ele cobre bootstrap, `POST /documents`, publicação/consumo RabbitMQ, objeto final,
-remoção condicional do staging, listagem, download concluído, exclusão definitiva e
-consulta do estado final. Uma credencial inválida deve
+remoção condicional do staging, listagem, download concluído, retry, exclusão atrasada,
+exclusão definitiva e consulta do estado final. Uma credencial inválida deve
 fazer o bootstrap falhar explicitamente; corrija o arquivo local e execute-o novamente,
 sem apagar volumes para mascarar o diagnóstico.
 
@@ -227,6 +247,7 @@ portas, adaptadores, persistência e infraestrutura. A arquitetura detalhada est
 - [Contrato HTTP](docs/api.md)
 - [Banco de dados e migrations](docs/database.md)
 - [Operação do registro binário](docs/document-registration-operations.md)
+- [Deploy, rollback e smoke test do Hub](specs/06-deploy/hub/deploy.md)
 - [Revisão da entrega](docs/document-registration-delivery-review.md)
 - [Frontend Angular](docs/frontend.md)
 - [Princípios de engenharia](specs/00-principios/principios.md)

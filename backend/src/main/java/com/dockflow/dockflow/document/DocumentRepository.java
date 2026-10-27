@@ -17,6 +17,34 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     Optional<Document> findByIdForUpdate(@Param("documentId") UUID documentId);
 
     /**
+     * Locks a document only when it is eligible for one explicit retry. The
+     * staging existence check remains an application/storage concern because
+     * PostgreSQL must not access MinIO.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select d
+          from Document d
+         where d.id = :documentId
+           and d.status = :status
+           and d.failureCount < :maxFailures
+           and d.excluded = false
+        """)
+    Optional<Document> findRetryCandidateForUpdate(
+        @Param("documentId") UUID documentId,
+        @Param("status") DocumentStatus status,
+        @Param("maxFailures") long maxFailures
+    );
+
+    default Optional<Document> findRetryCandidateForUpdate(UUID documentId) {
+        return findRetryCandidateForUpdate(
+            documentId,
+            DocumentStatus.FAILED,
+            Document.MAX_PROCESSING_FAILURES
+        );
+    }
+
+    /**
      * Atomically claims a document for one processing attempt.
      *
      * <p>The existing {@code updated_at} column is the lease timestamp and the
@@ -99,5 +127,33 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     Optional<Document> claimNextReconciliation(
         @Param("now") Instant now,
         @Param("maxAttempts") long maxAttempts
+    );
+
+    /** Claims one due document marked for delayed deletion for this transaction. */
+    @Query(value = """
+        SELECT *
+          FROM documents
+         WHERE is_excluded = TRUE
+           AND exclusion_scheduled_at IS NOT NULL
+           AND exclusion_scheduled_at <= :now
+         ORDER BY exclusion_scheduled_at, id
+         LIMIT 1
+         FOR UPDATE SKIP LOCKED
+        """, nativeQuery = true)
+    Optional<Document> claimNextScheduledDeletion(@Param("now") Instant now);
+
+    /** Locks one due deletion message's document, or returns empty when it is stale. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select d
+          from Document d
+         where d.id = :documentId
+           and d.excluded = true
+           and d.exclusionScheduledAt is not null
+           and d.exclusionScheduledAt <= :now
+        """)
+    Optional<Document> findScheduledDeletionForUpdate(
+        @Param("documentId") UUID documentId,
+        @Param("now") Instant now
     );
 }

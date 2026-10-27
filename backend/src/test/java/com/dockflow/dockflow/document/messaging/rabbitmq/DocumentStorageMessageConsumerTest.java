@@ -6,6 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentRepository;
 import com.dockflow.dockflow.document.DocumentStatus;
+import com.dockflow.dockflow.document.application.DocumentDeletionPublisher;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
@@ -53,6 +54,9 @@ class DocumentStorageMessageConsumerTest {
 
     @Mock
     private DocumentStorage documentStorage;
+
+    @Mock
+    private DocumentDeletionPublisher deletionPublisher;
 
     @Test
     void shouldClaimReadStoreRemoveAndCompleteTheDocument() {
@@ -171,8 +175,50 @@ class DocumentStorageMessageConsumerTest {
 
         assertEquals(DocumentStorageMessageConsumer.Disposition.DEAD_LETTER, result.disposition());
         assertEquals(DocumentStatus.FAILED, document.getStatus());
+        assertEquals(1, document.getFailureCount());
+        assertTrue(!document.isExcluded());
+        assertEquals(null, document.getExclusionScheduledAt());
         verify(documentRepository).save(document);
         verify(stagingRemover, never()).delete(any());
+    }
+
+    @Test
+    void shouldMarkTheThirdEffectiveFailureAsExcludedAndScheduled() {
+        UUID documentId = UUID.randomUUID();
+        Document document = document(documentId);
+        document.markFailed(NOW);
+        document.startRetryProcessing();
+        document.markFailed(NOW);
+        document.startRetryProcessing();
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
+
+        consumer().markFailedAfterPermanentFailure(documentId);
+
+        assertEquals(DocumentStatus.FAILED, document.getStatus());
+        assertEquals(3, document.getFailureCount());
+        assertTrue(document.isExcluded());
+        assertEquals(NOW.plusSeconds(3 * 60 * 60), document.getExclusionScheduledAt());
+        verify(documentRepository).saveAndFlush(document);
+    }
+
+    @Test
+    void shouldScheduleDeletionOnlyWhenTheThirdFailureIsPersisted() {
+        UUID documentId = UUID.randomUUID();
+        Document document = document(documentId);
+        document.markFailed(NOW);
+        document.startRetryProcessing();
+        document.markFailed(NOW);
+        document.startRetryProcessing();
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
+
+        consumerWithDeletionPublisher().markFailedAfterPermanentFailure(documentId);
+
+        verify(deletionPublisher).publish(new DocumentDeletionPublisher.DocumentDeletionScheduled(
+            DocumentStorageRabbitTopology.DELETION_MESSAGE_SCHEMA_VERSION,
+            documentId
+        ));
     }
 
     @Test
@@ -299,6 +345,17 @@ class DocumentStorageMessageConsumerTest {
             stagingReader,
             stagingRemover,
             documentStorage,
+            Clock.fixed(NOW, ZoneOffset.UTC)
+        );
+    }
+
+    private DocumentStorageMessageConsumer consumerWithDeletionPublisher() {
+        return new DocumentStorageMessageConsumer(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            Optional.of(deletionPublisher),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }

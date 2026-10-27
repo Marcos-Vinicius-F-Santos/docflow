@@ -155,8 +155,10 @@ mc mb --ignore-existing docflow/docflow-staging
 mc ls docflow/docflow-staging
 ```
 
-O comando não deve ser executado com credenciais literais versionadas. Lifecycle,
-retenção e limpeza automática do staging não estão definidos nesta feature.
+O comando não deve ser executado com credenciais literais versionadas. A retenção do
+staging é controlada pelo ciclo de processamento: sucesso remove o staging; falha
+permanente mantém o objeto enquanto o retry ainda for elegível ou até a exclusão
+atrasada do documento.
 
 ## Fluxo operacional
 
@@ -196,6 +198,55 @@ determinístico e só então remove o registro PostgreSQL. Falhas de storage pre
 registro para nova tentativa e não são apresentadas como sucesso. A política completa,
 incluindo mensagens tardias do RabbitMQ, está no
 [ADR-006 — Exclusão definitiva de documentos](../specs/02-arquitetura/DECISAO/ADR-006-exclusao-definitiva-documentos.md).
+
+## Retry manual e exclusão atrasada
+
+O retry é uma ação explícita do usuário. O endpoint reutiliza o staging existente e não
+recebe arquivo, `objectKey`, bucket ou credenciais:
+
+```powershell
+curl.exe -i -X POST http://localhost:8080/documents/{documentId}/retry
+```
+
+O backend só aceita um documento `FAILED` com `falhas < 3`, `isExcluded = false` e
+staging disponível. A resposta `202 Accepted` confirma somente a publicação da nova
+solicitação de processamento; o resultado final continua assíncrono e deve ser
+acompanhado por `GET /documents/{documentId}`. O retry adquire lock da linha e uma
+segunda solicitação enquanto o documento está `PROCESSING` não publica outra mensagem.
+
+Cada falha permanente efetiva incrementa `falhas`. A falha inicial conta como a
+primeira; clicar no retry não altera o contador. Uma conclusão bem-sucedida marca
+`COMPLETED`, zera `falhas`, mantém `isExcluded = false` e limpa
+`exclusionScheduledAt`.
+
+Na terceira falha, o documento permanece `FAILED`, recebe `falhas = 3`,
+`isExcluded = true` e `exclusionScheduledAt = agora + 3 horas`. O backend publica uma
+mensagem persistente contendo somente `schemaVersion` e `documentId` na fila de espera.
+O Hub não oferece uma quarta tentativa. A exclusão manual continua disponível e remove
+o documento imediatamente, sem esperar o TTL.
+
+### Topologia operacional da exclusão
+
+| Elemento | Nome/valor |
+|---|---|
+| Exchange | `docflow.document-deletion` |
+| Fila de espera | `docflow.document-deletion.delay.3h` |
+| Fila consumida | `docflow.document-deletion.requested` |
+| Routing key inicial | `document.deletion.scheduled` |
+| Routing key após TTL | `document.deletion.requested` |
+| DLX | `docflow.document-deletion.dlx` |
+| DLQ | `docflow.document-deletion.dlq` |
+| TTL | `10800000` ms (3 horas) |
+
+A mensagem é persistente e o publisher aguarda confirmação. Depois do TTL, o consumidor
+obtém lock do documento, remove o objeto final, remove `staging/{documentId}`, remove os
+metadados PostgreSQL e só então confirma a mensagem. Documento já removido manualmente
+é um caso idempotente e recebe `ACK`; falhas de validação, storage ou persistência
+seguem para a DLQ com `NACK` sem requeue. A DLQ não significa exclusão concluída.
+
+Se a publicação inicial falhar ou ficar inconclusiva, não remova o documento, o staging
+ou a mensagem manualmente. Preserve `isExcluded` e `exclusionScheduledAt`, registre o
+`documentId` e faça a recuperação operacional pela fila ou por reprocessamento aprovado.
 
 ## Mensageria
 
@@ -246,22 +297,39 @@ confirmação levam a `FAILED`.
 Toda falha deve ser correlacionada pelo `documentId`; logs não devem conter conteúdo
 binário ou credenciais.
 
+### Checklist adicional do Hub
+
+Para validar o ciclo de falhas sem esperar três horas em ambiente local, use os testes
+de integração com TTL reduzido somente na configuração de teste. O TTL de produção
+permanece em três horas.
+
+1. Acessar `/` e confirmar o Hub, a lista e os campos `falhas`, `isExcluded` e
+   `exclusionScheduledAt`.
+2. Enviar um arquivo válido pelo dropbox e confirmar que o usuário permanece no Hub.
+3. Confirmar um documento `FAILED`, executar o retry e verificar `202`, transição para
+   `PROCESSING` e reutilização de `staging/{documentId}`.
+4. Confirmar que a falha seguinte incrementa `falhas` sem criar novo documento.
+5. Confirmar que a terceira falha marca exclusão, publica em
+   `docflow.document-deletion.delay.3h` e remove a ação de retry.
+6. Exercitar a exclusão manual antes do vencimento e confirmar que uma mensagem tardia
+   não recria o documento nem os objetos.
+
 ## Rollback
 
 1. Interromper o tráfego para a versão nova e preservar as mensagens já publicadas; não
-   purgar a fila nem apagar o bucket inteiro.
-2. Reverter a aplicação para a versão anterior pelo mecanismo normal de deploy.
-3. Avisar os clientes: a versão anterior aceita o contrato JSON antigo, enquanto a
-   versão nova exige multipart.
-4. Preservar objetos `staging/{documentId}` e mensagens relacionadas para investigação
-   ou reprocessamento conforme a feature de mensageria.
-5. Se o staging tiver sido gravado e a publicação falhar, não remover o objeto sem uma
-   decisão operacional de compensação.
-6. Se a publicação tiver resultado inconclusivo, tratar a mensagem como potencialmente
-   existente e depender da idempotência definida pelo consumidor; não publicar cópias
-   manualmente sem correlação por `documentId`.
-7. Se a persistência falhar depois do staging, registrar o `documentId` e manter o
-   objeto para investigação; qualquer limpeza deve ser seletiva e aprovada.
+   purgar filas, excluir mensagens, apagar buckets ou remover volumes.
+2. Registrar os `documentId`s em `FAILED`/`PROCESSING` e os documentos com
+   `isExcluded = true`, incluindo `exclusionScheduledAt`.
+3. Reverter a aplicação pelo mecanismo normal de deploy. A versão anterior pode ignorar
+   as colunas V6, mas não deve ser usada para editar ou remover seus dados.
+4. Preservar objetos `staging/{documentId}`, objetos finais e mensagens das filas
+   `docflow.document-deletion.*` para investigação ou replay seletivo.
+5. Se a publicação estiver inconclusiva, tratar a mensagem como potencialmente existente
+   e depender da idempotência definida pelo consumidor; não publicar cópias manuais.
+6. Se a persistência falhar depois do staging, manter o objeto e registrar o
+   `documentId`; qualquer limpeza deve ser seletiva e aprovada.
+7. Depois da reversão, validar que PostgreSQL, RabbitMQ e MinIO continuam íntegros antes
+   de retomar tráfego. Uma migration V6 aplicada não deve ser removida por SQL manual.
 
 O rollback não inclui edição direta no PostgreSQL, remoção em massa no MinIO ou alteração
 manual de mensagens. A decisão de limpeza/reconciliação deve ser registrada antes de

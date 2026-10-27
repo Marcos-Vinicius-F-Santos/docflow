@@ -15,6 +15,8 @@ import java.time.Duration;
 
 public class Document implements Persistable<UUID> {
     public static final Duration PROCESSING_LEASE = Duration.ofSeconds(10);
+    public static final int MAX_PROCESSING_FAILURES = 3;
+    public static final Duration EXCLUSION_DELAY = Duration.ofHours(3);
 
     @Id
     private UUID id;
@@ -44,6 +46,16 @@ public class Document implements Persistable<UUID> {
 
     @Column(name = "reconciliation_next_attempt_at")
     private Instant reconciliationNextAttemptAt;
+
+    @PositiveOrZero
+    @Column(name = "failure_count", nullable = false)
+    private long failureCount;
+
+    @Column(name = "is_excluded", nullable = false)
+    private boolean excluded;
+
+    @Column(name = "exclusion_scheduled_at")
+    private Instant exclusionScheduledAt;
 
     @Version
     @Column(nullable = false)
@@ -151,6 +163,18 @@ public class Document implements Persistable<UUID> {
         return reconciliationAttempts;
     }
 
+    public long getFailureCount() {
+        return failureCount;
+    }
+
+    public boolean isExcluded() {
+        return excluded;
+    }
+
+    public Instant getExclusionScheduledAt() {
+        return exclusionScheduledAt;
+    }
+
     /** Registers the deterministic final-storage reference before processing can be uncertain. */
     public void registerStorageObjectKey(String objectKey) {
         if (status != DocumentStatus.PENDING && status != DocumentStatus.PROCESSING) {
@@ -223,6 +247,18 @@ public class Document implements Persistable<UUID> {
         status = DocumentStatus.PROCESSING;
     }
 
+    /** Starts an explicit retry without counting a failure before processing runs. */
+    public void startRetryProcessing() {
+        if (status != DocumentStatus.FAILED) {
+            throw new IllegalStateException("Only failed documents can be retried");
+        }
+        if (failureCount >= MAX_PROCESSING_FAILURES || excluded) {
+            throw new IllegalStateException("The document is no longer eligible for retry");
+        }
+
+        status = DocumentStatus.PROCESSING;
+    }
+
     public void markCompleted(String objectKey) {
         if (status != DocumentStatus.PROCESSING) {
             throw new IllegalStateException("Only processing documents can be completed");
@@ -237,16 +273,36 @@ public class Document implements Persistable<UUID> {
 
         this.objectKey = objectKey;
         this.reconciliationNextAttemptAt = null;
+        this.failureCount = 0;
+        this.excluded = false;
+        this.exclusionScheduledAt = null;
         status = DocumentStatus.COMPLETED;
     }
 
     public void markFailed() {
+        markFailed(Instant.now());
+    }
+
+    /**
+     * Marks one effective processing failure, including the initial attempt.
+     * The timestamp overload keeps the three-hour scheduling rule deterministic
+     * for unit tests and callers that already have the event time.
+     */
+    public void markFailed(Instant failedAt) {
         if (status != DocumentStatus.PENDING && status != DocumentStatus.PROCESSING) {
             throw new IllegalStateException("Only pending or processing documents can fail");
         }
+        if (failedAt == null) {
+            throw new IllegalArgumentException("failedAt cannot be null");
+        }
 
+        failureCount++;
         status = DocumentStatus.FAILED;
         reconciliationNextAttemptAt = null;
+        if (failureCount >= MAX_PROCESSING_FAILURES) {
+            excluded = true;
+            exclusionScheduledAt = failedAt.plus(EXCLUSION_DELAY);
+        }
     }
     
     public UUID getId() {

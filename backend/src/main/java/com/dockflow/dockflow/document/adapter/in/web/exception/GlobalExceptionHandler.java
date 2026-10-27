@@ -7,6 +7,9 @@ import com.dockflow.dockflow.document.exception.DocumentContentStorageUnavailabl
 import com.dockflow.dockflow.document.exception.DocumentDeletionException;
 import com.dockflow.dockflow.document.exception.DocumentDeletionStorageUnavailableException;
 import com.dockflow.dockflow.document.application.DocumentContentValidator;
+import com.dockflow.dockflow.document.application.DocumentPublicationException;
+import com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException;
+import com.dockflow.dockflow.document.exception.DocumentRetryStorageUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,8 +47,23 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DocumentNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    void handleDocumentNotFound() {
+    ProblemDetail handleDocumentNotFound(DocumentNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "Document not found", "DOCUMENT_NOT_FOUND", exception);
+    }
+
+    @ExceptionHandler(DocumentRetryNotEligibleException.class)
+    ProblemDetail handleDocumentRetryNotEligible(DocumentRetryNotEligibleException exception) {
+        return problem(HttpStatus.CONFLICT, "Document retry is not eligible", "DOCUMENT_RETRY_NOT_ELIGIBLE", exception);
+    }
+
+    @ExceptionHandler(DocumentRetryStorageUnavailableException.class)
+    ProblemDetail handleDocumentRetryStorageUnavailable(DocumentRetryStorageUnavailableException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Document retry is unavailable", "DOCUMENT_STORAGE_UNAVAILABLE", exception);
+    }
+
+    @ExceptionHandler(DocumentPublicationException.class)
+    ProblemDetail handleDocumentPublicationFailure(DocumentPublicationException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Document retry publication is unavailable", "DOCUMENT_RETRY_UNAVAILABLE", exception);
     }
 
     @ExceptionHandler(DocumentContentNotFoundException.class)
