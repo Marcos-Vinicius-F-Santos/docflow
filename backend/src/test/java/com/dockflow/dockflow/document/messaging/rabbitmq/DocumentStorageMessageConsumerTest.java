@@ -11,6 +11,9 @@ import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEvent;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogLocalWriter;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -26,6 +29,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -98,6 +102,58 @@ class DocumentStorageMessageConsumerTest {
         );
         order.verify(stagingRemover).delete(message.contentReference());
         verify(documentRepository).save(document);
+    }
+
+    @Test
+    void shouldEmitOperationalLogForProcessingSuccess() {
+        UUID documentId = UUID.randomUUID();
+        Document document = document(documentId);
+        DocumentStorageRequestedMessage message = message(documentId, 8);
+        AtomicReference<ApplicationLogEvent> captured = new AtomicReference<>();
+
+        when(documentRepository.claimForProcessing(eq(documentId), eq(NOW))).thenAnswer(invocation -> {
+            document.startProcessing();
+            return 1;
+        });
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
+        when(documentStorage.exists(message.objectKey())).thenReturn(false);
+        when(stagingReader.open(message.contentReference())).thenReturn(
+            new DocumentStagingReader.StagedContent(new ByteArrayInputStream("content".getBytes()), 7, "text/plain")
+        );
+
+        DocumentStorageMessageConsumer consumer = consumerWithLog(captured);
+        consumer.process(message);
+
+        assertEquals("document.processing.completed", captured.get().operation());
+        assertEquals(documentId, captured.get().documentId());
+    }
+
+    @Test
+    void shouldEmitWarningForTransientProcessingRetry() {
+        UUID documentId = UUID.randomUUID();
+        Document document = document(documentId);
+        DocumentStorageRequestedMessage message = message(documentId, 8);
+        AtomicReference<ApplicationLogEvent> captured = new AtomicReference<>();
+
+        when(documentRepository.claimForProcessing(eq(documentId), eq(NOW))).thenAnswer(invocation -> {
+            document.startProcessing();
+            return 1;
+        });
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
+        when(documentStorage.exists(message.objectKey())).thenReturn(false);
+        when(stagingReader.open(message.contentReference())).thenReturn(
+            new DocumentStagingReader.StagedContent(new ByteArrayInputStream("content".getBytes()), 7, "text/plain")
+        );
+        when(documentStorage.store(any(), any(), any(Long.class), any())).thenThrow(
+            new DocumentStorageException(DocumentStorageException.FailureType.UNAVAILABLE, "storage unavailable")
+        );
+
+        DocumentStorageMessageConsumer consumer = consumerWithLog(captured);
+        DocumentStorageMessageConsumer.ProcessingResult result = consumer.process(message);
+
+        assertEquals(DocumentStorageMessageConsumer.Disposition.RETRY, result.disposition());
+        assertEquals("document.processing.retry", captured.get().operation());
+        assertEquals("WARN", captured.get().level().name());
     }
 
     @Test
@@ -357,6 +413,23 @@ class DocumentStorageMessageConsumerTest {
             documentStorage,
             Optional.of(deletionPublisher),
             Clock.fixed(NOW, ZoneOffset.UTC)
+        );
+    }
+
+    private DocumentStorageMessageConsumer consumerWithLog(AtomicReference<ApplicationLogEvent> captured) {
+        return new DocumentStorageMessageConsumer(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            Optional.empty(),
+            Optional.empty(),
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            Optional.of(new ApplicationLogRecorder(
+                captured::set,
+                Optional.empty(),
+                Runnable::run
+            ))
         );
     }
 

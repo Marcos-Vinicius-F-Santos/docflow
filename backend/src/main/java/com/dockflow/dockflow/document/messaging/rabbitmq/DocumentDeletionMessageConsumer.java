@@ -2,6 +2,7 @@ package com.dockflow.dockflow.document.messaging.rabbitmq;
 
 import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentRepository;
+import com.dockflow.dockflow.document.application.DocumentLifecycleEventPublisher;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
@@ -22,6 +23,8 @@ public class DocumentDeletionMessageConsumer {
     private final DocumentRepository documentRepository;
     private final DocumentStorage documentStorage;
     private final DocumentStagingRemover stagingRemover;
+    private final Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher;
+    private final DocumentLifecycleEventMapper lifecycleEventMapper;
     private final Clock clock;
 
     public DocumentDeletionMessageConsumer(
@@ -38,9 +41,21 @@ public class DocumentDeletionMessageConsumer {
         DocumentStagingRemover stagingRemover,
         Clock clock
     ) {
+        this(documentRepository, documentStorage, stagingRemover, Optional.empty(), clock);
+    }
+
+    public DocumentDeletionMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStorage documentStorage,
+        DocumentStagingRemover stagingRemover,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher,
+        Clock clock
+    ) {
         this.documentRepository = documentRepository;
         this.documentStorage = documentStorage;
         this.stagingRemover = stagingRemover;
+        this.lifecycleEventPublisher = lifecycleEventPublisher;
+        this.lifecycleEventMapper = new DocumentLifecycleEventMapper();
         this.clock = clock;
     }
 
@@ -72,6 +87,7 @@ public class DocumentDeletionMessageConsumer {
             stagingRemover.delete(stagingReference);
             documentRepository.delete(document);
             documentRepository.flush();
+            publishDeleted(documentId, now);
             log.atInfo().addKeyValue("documentId", documentId).log("document deletion completed");
             return ProcessingResult.acknowledged(documentId);
         } catch (DocumentStorageException exception) {
@@ -79,6 +95,17 @@ public class DocumentDeletionMessageConsumer {
                 .log("document deletion failed in storage");
             return ProcessingResult.deadLetter(documentId);
         }
+    }
+
+    private void publishDeleted(UUID documentId, Instant occurredAt) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.deleted(documentId, occurredAt));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
+                    .log("document deleted notification could not be published");
+            }
+        });
     }
 
     private void validate(DocumentDeletionScheduledMessage message) {

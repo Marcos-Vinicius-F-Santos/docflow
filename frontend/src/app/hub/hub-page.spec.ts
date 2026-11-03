@@ -4,6 +4,9 @@ import { HttpEventType, HttpResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import { DocumentApiService } from '../document/document-api.service';
 import { DocumentResponse } from '../document/document.models';
+import { DocumentNotificationEvent, NotificationConnectionState } from '../notifications/notification-event.models';
+import { NotificationSessionState } from '../notifications/notification-session-state.service';
+import { notificationEventFixtures } from '../notifications/testing/notification-event.fixtures';
 import { HubPage } from './hub-page';
 import { routes } from '../app.routes';
 
@@ -12,6 +15,11 @@ describe('HubPage', () => {
   let documentApi: {
     list: ReturnType<typeof vi.fn>;
     upload: ReturnType<typeof vi.fn>;
+  };
+  let notificationService: {
+    events$: Subject<DocumentNotificationEvent>;
+    connectionState$: Subject<NotificationConnectionState>;
+    start: ReturnType<typeof vi.fn>;
   };
 
   const documentResponse = (
@@ -37,10 +45,15 @@ describe('HubPage', () => {
       list: vi.fn(() => of([])),
       upload: vi.fn(),
     };
+    notificationService = {
+      events$: new Subject<DocumentNotificationEvent>(),
+      connectionState$: new Subject<NotificationConnectionState>(),
+      start: vi.fn(),
+    };
     await TestBed.configureTestingModule({
       imports: [HubPage],
       providers: [provideRouter(routes), { provide: DocumentApiService, useValue: documentApi }],
-    }).compileComponents();
+    }).overrideProvider(NotificationSessionState, { useValue: notificationService }).compileComponents();
 
     fixture = TestBed.createComponent(HubPage);
     fixture.detectChanges();
@@ -190,6 +203,88 @@ describe('HubPage', () => {
     expect(fixture.nativeElement.textContent).toContain('pending.pdf');
     expect(fixture.nativeElement.textContent).toContain('FAILED');
     expect(fixture.nativeElement.querySelector('a[href="/documents/failed"]')).not.toBeNull();
+  });
+
+  it('refreshes the REST list after the notification connection is recovered', async () => {
+    documentApi.list.mockReturnValueOnce(
+      of([documentResponse('fresh', 'COMPLETED', '2026-09-02T10:00:00Z')]),
+    );
+    expect(documentApi.list).toHaveBeenCalledTimes(1);
+    expect(notificationService.start).toHaveBeenCalledTimes(1);
+
+    notificationService.connectionState$.next('CONNECTED');
+    notificationService.connectionState$.next('DISCONNECTED');
+    notificationService.connectionState$.next('RECONNECTING');
+    notificationService.connectionState$.next('CONNECTED');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(documentApi.list).toHaveBeenCalledTimes(2);
+    expect(fixture.nativeElement.textContent).toContain('fresh.pdf');
+  });
+
+  it('shows each valid event in a temporary toast and persistent session banner', () => {
+    const event = notificationEventFixtures[1] as DocumentNotificationEvent;
+
+    notificationService.events$.next(event);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.notification-toast')?.textContent).toContain(
+      'Documento concluído',
+    );
+    expect(fixture.nativeElement.querySelector('.notification-banner')?.textContent).toContain(
+      'Documento ' + event.documentId,
+    );
+    expect(fixture.nativeElement.querySelector('[aria-live="assertive"]')).not.toBeNull();
+  });
+
+  it('updates an existing document and links its notification to tracking', () => {
+    const existing = documentResponse('existing', 'PROCESSING', '2026-09-01T10:00:00Z');
+    documentApi.list.mockReturnValue(of([existing]));
+    const page = fixture.componentInstance;
+    page.loadDocuments();
+    fixture.detectChanges();
+
+    notificationService.events$.next({
+      ...notificationEventFixtures[1],
+      documentId: existing.id,
+    } as DocumentNotificationEvent);
+    fixture.detectChanges();
+
+    expect(page.documents).toHaveLength(1);
+    expect(page.documents[0].status).toBe('COMPLETED');
+    expect(fixture.nativeElement.querySelector('.notification-banner a')?.getAttribute('href')).toContain(
+      '/documents/existing',
+    );
+  });
+
+  it('does not recreate or link a document that is already absent', () => {
+    const missingEvent = {
+      ...notificationEventFixtures[4],
+      documentId: 'already-removed',
+    } as DocumentNotificationEvent;
+
+    notificationService.events$.next(missingEvent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.documents).toHaveLength(0);
+    expect(fixture.nativeElement.querySelector('.notification-banner a')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.notification-document-unavailable')).not.toBeNull();
+  });
+
+  it('announces connection loss without blocking upload controls', () => {
+    notificationService.connectionState$.next('RECONNECTING');
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector('.connection-status') as HTMLElement;
+    const fileInput = fixture.nativeElement.querySelector('#hub-document-file-input') as HTMLInputElement;
+    expect(status.textContent).toContain('Reconectando notificações');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(fileInput.disabled).toBe(false);
+
+    notificationService.connectionState$.next('CONNECTED');
+    fixture.detectChanges();
+    expect(status.textContent).toContain('Notificações conectadas');
   });
 
   it('shows the empty central state without removing the upload dropbox', async () => {

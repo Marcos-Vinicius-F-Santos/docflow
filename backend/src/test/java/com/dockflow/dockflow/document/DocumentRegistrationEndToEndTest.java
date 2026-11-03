@@ -17,6 +17,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
@@ -32,10 +33,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Testcontainers
@@ -173,7 +176,10 @@ class DocumentRegistrationEndToEndTest {
                 "pending.pdf", "processing.pdf", "completed.txt", "failed.pdf"
             )));
 
-        mockMvc.perform(get("/documents/{documentId}/content", completedId))
+        MvcResult downloadResult = mockMvc.perform(get("/documents/{documentId}/content", completedId))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+        mockMvc.perform(asyncDispatch(downloadResult))
             .andExpect(status().isOk())
             .andExpect(content().bytes(content))
             .andExpect(header().string("Content-Type", "text/plain"))
@@ -183,7 +189,10 @@ class DocumentRegistrationEndToEndTest {
                 "attachment; filename=\"completed.txt\""
             ));
 
-        mockMvc.perform(get("/documents/{documentId}/preview", completedId))
+        MvcResult previewResult = mockMvc.perform(get("/documents/{documentId}/preview", completedId))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+        mockMvc.perform(asyncDispatch(previewResult))
             .andExpect(status().isOk())
             .andExpect(content().bytes(content))
             .andExpect(header().string(

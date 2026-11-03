@@ -46,6 +46,8 @@ e o procedimento operacional completo está em
 - Flyway
 - MinIO para object storage local e staging
 - RabbitMQ como transporte do fluxo assíncrono, com retries, DLQ e publisher confirms
+- Logs operacionais estruturados localmente e persistidos de forma assíncrona em
+  PostgreSQL, com consulta read-only em `/logs`, retries e DLQ próprios
 - Maven Wrapper
 - JUnit e Testcontainers
 
@@ -189,6 +191,13 @@ remove o registro PostgreSQL, o objeto final e o staging determinístico conform
 
 O contrato detalhado da API está em [`docs/api.md`](docs/api.md).
 
+### Notificações em tempo real
+
+O Hub recebe atualizações pelo WebSocket `GET /ws/notifications`. O contrato público,
+a topologia RabbitMQ, os retries/DLQs de e-mail, a configuração Web3Forms e a limitação
+de que não existe replay ou histórico estão em
+[`docs/document-notifications.md`](docs/document-notifications.md).
+
 ## Testes
 
 Para executar a suíte do backend:
@@ -245,7 +254,9 @@ portas, adaptadores, persistência e infraestrutura. A arquitetura detalhada est
 - [Spec do produto](specs/01-produto/SPEC_PRODUTO.md)
 - [Arquitetura](specs/02-arquitetura/ARQUITETURA.md)
 - [Contrato HTTP](docs/api.md)
+- [Notificações RabbitMQ, WebSocket e Web3Forms](docs/document-notifications.md)
 - [Banco de dados e migrations](docs/database.md)
+- [Logs operacionais e consulta `/logs`](specs/06-deploy/logs-operacionais/deploy.md)
 - [Operação do registro binário](docs/document-registration-operations.md)
 - [Deploy, rollback e smoke test do Hub](specs/06-deploy/hub/deploy.md)
 - [Revisão da entrega](docs/document-registration-delivery-review.md)

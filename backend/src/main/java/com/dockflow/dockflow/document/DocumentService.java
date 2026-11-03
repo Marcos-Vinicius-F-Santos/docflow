@@ -2,8 +2,13 @@ package com.dockflow.dockflow.document;
 import com.dockflow.dockflow.document.application.DocumentContent;
 import com.dockflow.dockflow.document.application.DocumentContentValidator;
 import com.dockflow.dockflow.document.application.DocumentDownload;
+import com.dockflow.dockflow.document.application.DocumentLifecycleEventPublisher;
 import com.dockflow.dockflow.document.application.DocumentPublicationException;
 import com.dockflow.dockflow.document.application.DocumentStorageRequestPublisher;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogContext;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEventFactory;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogLevel;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 import com.dockflow.dockflow.document.exception.DocumentContentNotAvailableException;
 import com.dockflow.dockflow.document.exception.DocumentContentNotFoundException;
 import com.dockflow.dockflow.document.exception.DocumentContentStorageUnavailableException;
@@ -16,17 +21,23 @@ import com.dockflow.dockflow.document.port.out.storage.DocumentStaging;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
+import com.dockflow.dockflow.document.messaging.rabbitmq.DocumentLifecycleEventMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
+import java.util.Map;
 
 @Service
 public class DocumentService {
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+
     private final DocumentRepository documentRepository;
     private final DocumentContentValidator contentValidator;
     private final Optional<DocumentStaging> documentStaging;
@@ -34,6 +45,10 @@ public class DocumentService {
     private final Optional<DocumentStorageRequestPublisher> requestPublisher;
     private final Optional<DocumentStorage> documentStorage;
     private final Optional<DocumentStagingRemover> documentStagingRemover;
+    private final Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher;
+    private final DocumentLifecycleEventMapper lifecycleEventMapper;
+    private Optional<ApplicationLogRecorder> operationalLogRecorder = Optional.empty();
+    private ApplicationLogEventFactory operationalLogEventFactory = new ApplicationLogEventFactory();
 
     public DocumentService(DocumentRepository documentRepository) {
         this.documentRepository = documentRepository;
@@ -43,6 +58,8 @@ public class DocumentService {
         this.requestPublisher = Optional.empty();
         this.documentStorage = Optional.empty();
         this.documentStagingRemover = Optional.empty();
+        this.lifecycleEventPublisher = Optional.empty();
+        this.lifecycleEventMapper = new DocumentLifecycleEventMapper();
     }
 
     public DocumentService(
@@ -77,7 +94,29 @@ public class DocumentService {
             Optional.empty(),
             requestPublisher,
             documentStorage,
-            documentStagingRemover
+            documentStagingRemover,
+            Optional.empty()
+        );
+    }
+
+    public DocumentService(
+        DocumentRepository documentRepository,
+        DocumentContentValidator contentValidator,
+        Optional<DocumentStaging> documentStaging,
+        Optional<DocumentStagingReader> documentStagingReader,
+        Optional<DocumentStorageRequestPublisher> requestPublisher,
+        Optional<DocumentStorage> documentStorage,
+        Optional<DocumentStagingRemover> documentStagingRemover
+    ) {
+        this(
+            documentRepository,
+            contentValidator,
+            documentStaging,
+            documentStagingReader,
+            requestPublisher,
+            documentStorage,
+            documentStagingRemover,
+            Optional.empty()
         );
     }
 
@@ -89,7 +128,8 @@ public class DocumentService {
         Optional<DocumentStagingReader> documentStagingReader,
         Optional<DocumentStorageRequestPublisher> requestPublisher,
         Optional<DocumentStorage> documentStorage,
-        Optional<DocumentStagingRemover> documentStagingRemover
+        Optional<DocumentStagingRemover> documentStagingRemover,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher
     ) {
         this.documentRepository = documentRepository;
         this.contentValidator = contentValidator;
@@ -98,6 +138,17 @@ public class DocumentService {
         this.requestPublisher = requestPublisher;
         this.documentStorage = documentStorage;
         this.documentStagingRemover = documentStagingRemover;
+        this.lifecycleEventPublisher = lifecycleEventPublisher;
+        this.lifecycleEventMapper = new DocumentLifecycleEventMapper();
+    }
+
+    @Autowired
+    void configureOperationalLogging(
+        ApplicationLogRecorder recorder,
+        ApplicationLogEventFactory eventFactory
+    ) {
+        this.operationalLogRecorder = Optional.of(recorder);
+        this.operationalLogEventFactory = eventFactory;
     }
 
     @Transactional
@@ -108,7 +159,15 @@ public class DocumentService {
     ) {
 
         Document document = new Document(originalFilename, contentType, sizeBytes);
-        return documentRepository.save(document);
+        Document saved = documentRepository.save(document);
+        record(
+            ApplicationLogLevel.INFO,
+            "document.accepted",
+            "Document accepted for processing",
+            saved.getId(),
+            Map.of("contentType", String.valueOf(contentType), "sizeBytes", sizeBytes)
+        );
+        return saved;
 
     }
 
@@ -142,6 +201,13 @@ public class DocumentService {
         );
         Document saved = documentRepository.save(document);
         documentRepository.flush();
+        record(
+            ApplicationLogLevel.INFO,
+            "document.accepted",
+            "Document upload accepted",
+            documentId,
+            Map.of("contentType", String.valueOf(validatedContent.contentType()), "sizeBytes", staged.sizeBytes())
+        );
 
         publisher.publish(new DocumentStorageRequestPublisher.DocumentStorageRequested(
             1,
@@ -200,6 +266,14 @@ public class DocumentService {
 
         document.startRetryProcessing();
         documentRepository.saveAndFlush(document);
+        record(
+            ApplicationLogLevel.INFO,
+            "document.retry",
+            "Document retry requested",
+            id,
+            Map.of("failureCount", document.getFailureCount())
+        );
+        publishProcessingStarted(document);
 
         String objectKey = document.getObjectKey() == null || document.getObjectKey().isBlank()
             ? "documents/" + id
@@ -216,6 +290,17 @@ public class DocumentService {
             ));
 
         return document;
+    }
+
+    private void publishProcessingStarted(Document document) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.processingStarted(document, java.time.Instant.now()));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", document.getId()).setCause(exception)
+                    .log("document processing started notification could not be published");
+            }
+        });
     }
 
     @Transactional(readOnly = true)
@@ -269,6 +354,13 @@ public class DocumentService {
                 .orElseThrow(() -> new IllegalStateException("Document staging remover is not configured"))
                 .delete("staging/" + id);
         } catch (DocumentStorageException exception) {
+            record(
+                ApplicationLogLevel.ERROR,
+                "document.delete",
+                "Document deletion failed in storage",
+                id,
+                Map.of("failureType", exception.getFailureType().name())
+            );
             if (exception.getFailureType() == DocumentStorageException.FailureType.UNAVAILABLE
                 || exception.getFailureType() == DocumentStorageException.FailureType.RESULT_UNKNOWN) {
                 throw new DocumentDeletionStorageUnavailableException(id, exception);
@@ -278,6 +370,37 @@ public class DocumentService {
 
         documentRepository.delete(document);
         documentRepository.flush();
+        record(ApplicationLogLevel.INFO, "document.deleted", "Document deleted", id, Map.of());
+        publishDeleted(document.getId());
+    }
+
+    private void publishDeleted(UUID documentId) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.deleted(documentId, java.time.Instant.now()));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
+                    .log("document deleted notification could not be published");
+            }
+        });
+    }
+
+    private void record(
+        ApplicationLogLevel level,
+        String operation,
+        String message,
+        UUID documentId,
+        Map<String, ?> details
+    ) {
+        operationalLogRecorder.ifPresent(recorder -> recorder.record(operationalLogEventFactory.create(
+            level,
+            "document-api",
+            "document-service",
+            operation,
+            message,
+            new ApplicationLogContext(null, documentId),
+            details
+        )));
     }
 
 }

@@ -1,0 +1,267 @@
+:host {
+  display: block;
+}
+
+.logs-page {
+  width: min(100% - 2rem, 72rem);
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  color: #0b69a3;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  color: #102a43;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1.05;
+}
+
+.page-introduction {
+  margin: 1rem 0 0;
+  color: #486581;
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.logs-filters,
+.logs-shell {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #486581;
+}
+
+.logs-filters {
+  margin-top: 2rem;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.filter-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: #52606d;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.filter-grid input,
+.filter-grid select {
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #243b53;
+  font: inherit;
+  font-weight: 400;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.filter-actions button {
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #0b69a3;
+  border-radius: 0.5rem;
+  background: #0b69a3;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.filter-actions .secondary-action {
+  border-color: #bcccdc;
+  background: #fff;
+  color: #243b53;
+}
+
+.section-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #243b53;
+  font-size: 1.35rem;
+}
+
+.section-heading > span {
+  color: #52606d;
+  white-space: nowrap;
+}
+
+.logs-state {
+  margin: 1.25rem 0 0;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: #f0f4f8;
+  color: #486581;
+}
+
+.logs-state-error {
+  background: #fff5f5;
+  color: #b42318;
+}
+
+.logs-state button {
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #0b69a3;
+  border-radius: 0.5rem;
+  background: #0b69a3;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.logs-table-scroll {
+  margin-top: 1.25rem;
+  overflow-x: auto;
+}
+
+.logs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  color: #52606d;
+  font-size: 0.9rem;
+}
+
+.logs-pagination button {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #243b53;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.logs-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #243b53;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #d9e2ec;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #52606d;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
+}
+
+.message-cell {
+  min-width: 16rem;
+}
+
+.level-badge {
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.level-info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.level-warn {
+  background: #fff4e5;
+  color: #9c2c00;
+}
+
+.level-error {
+  background: #fee2e2;
+  color: #b42318;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.logs-shell p:last-child {
+  margin: 0;
+}
+
+@media (max-width: 38rem) {
+  .logs-page {
+    padding-top: 1rem;
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .logs-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

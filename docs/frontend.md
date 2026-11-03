@@ -21,7 +21,8 @@ em lote permanecem fora do escopo desta versão.
 - PostgreSQL, RabbitMQ e MinIO locais iniciados conforme o procedimento do projeto
 
 O frontend não acessa diretamente banco, filas ou object storage. Em desenvolvimento,
-o proxy Angular encaminha `/api/documents` para o backend em `/documents`.
+o proxy Angular encaminha `/api/documents` para o backend em `/documents` e `/api/logs`
+para `/logs`.
 
 ## Executar localmente
 

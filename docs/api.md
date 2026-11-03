@@ -1,5 +1,44 @@
 # Contrato HTTP — Documentos
 
+## Contrato lógico de notificações de ciclo de vida
+
+As notificações de documentos usam um contrato JSON versionado e provider-neutral.
+Ele é o mesmo contrato lógico que será entregue pelos canais de notificação; nomes de
+exchange, filas, routing keys, storage, bucket e credenciais não fazem parte deste
+payload.
+
+Os cinco valores possíveis de `type` são:
+
+- `DOCUMENT_PROCESSING_STARTED`;
+- `DOCUMENT_COMPLETED`;
+- `DOCUMENT_FAILED`;
+- `DOCUMENT_DELETION_WARNING`;
+- `DOCUMENT_DELETED`.
+
+Exemplo de falha:
+
+```json
+{
+  "eventId": "00000000-0000-0000-0000-000000000000",
+  "schemaVersion": 1,
+  "type": "DOCUMENT_FAILED",
+  "documentId": "00000000-0000-0000-0000-000000000000",
+  "occurredAt": "2026-10-28T12:00:00Z",
+  "status": "FAILED",
+  "failureCount": 1
+}
+```
+
+`eventId`, `schemaVersion`, `type`, `documentId` e `occurredAt` são obrigatórios em
+todos os eventos. `status` é `PROCESSING` para início, `COMPLETED` para conclusão e
+`FAILED` para falha/aviso de exclusão. `failureCount` é obrigatório em falha e aviso;
+`exclusionScheduledAt` é obrigatório no aviso e pode ser omitido quando não houver
+agenda aplicável. O evento `DOCUMENT_DELETED` não carrega estado do documento, pois o
+registro já foi removido. Campos opcionais sem sentido são omitidos do JSON.
+
+O contrato público não expõe `objectKey`, bucket, referência de staging, exchange, fila,
+routing key, API key ou qualquer credencial.
+
 ## `POST /documents`
 
 O registro de documentos exige `multipart/form-data` com uma única parte obrigatória:
@@ -299,8 +338,74 @@ conteúdo; segue a política de documento ausente do ADR-006.
 
 O endpoint não implementa exclusão lógica e não recebe `objectKey` do cliente.
 
+## Notificações em tempo real
+
+O Hub recebe os eventos de ciclo de vida por `GET /ws/notifications` em um upgrade
+WebSocket. O contrato JSON, os cinco tipos de evento, a deduplicação por `eventId`, a
+reconexão e a operação das filas estão descritos em
+[document-notifications.md](document-notifications.md).
+
+O WebSocket não oferece replay nem histórico. Depois de uma reconexão, o frontend
+consulta `GET /documents` para recuperar o estado atual. Nomes de filas, routing keys,
+storage e credenciais não fazem parte do payload entregue ao navegador.
+
 | Situação | HTTP |
 |---|---:|
 | Documento inexistente | `404 Not Found` |
 | Falha temporária do storage | `503 Service Unavailable` |
 | Falha inesperada | `500 Internal Server Error` |
+
+## `GET /logs`
+
+Consulta somente leitura dos eventos operacionais persistidos. A resposta e paginada e
+ordenada por `occurredAt` decrescente e, como desempate, por `eventId` decrescente.
+
+Parametros opcionais:
+
+| Parametro | Formato | Observacao |
+|---|---|---|
+| `page` | inteiro >= 0 | Pagina zero-based; padrao `0`. |
+| `size` | inteiro entre `1` e `100` | Padrao `50`; limite controlado por `DOCFLOW_LOGS_MAX_PAGE_SIZE`. |
+| `level` | `INFO`, `WARN` ou `ERROR` | Filtro por nivel. |
+| `service`, `component`, `operation` | texto | Filtros por igualdade. |
+| `documentId`, `correlationId` | UUID | Filtros por identificador. |
+| `occurredFrom`, `occurredTo` | ISO-8601 `Instant` | Intervalo inclusivo; `occurredTo` nao pode preceder `occurredFrom`. |
+
+Exemplo:
+
+```text
+GET /logs?page=0&size=25&level=ERROR&documentId=00000000-0000-0000-0000-000000000000
+```
+
+Resposta `200 OK`:
+
+```json
+{
+  "items": [
+    {
+      "eventId": "00000000-0000-0000-0000-000000000000",
+      "schemaVersion": 1,
+      "occurredAt": "2026-10-29T12:00:00Z",
+      "level": "ERROR",
+      "service": "document-api",
+      "component": "document-storage-consumer",
+      "operation": "document.processing",
+      "message": "Falha ao confirmar o storage final",
+      "correlationId": null,
+      "documentId": "00000000-0000-0000-0000-000000000000",
+      "details": { "errorCode": "STORAGE_UNAVAILABLE" }
+    }
+  ],
+  "page": 0,
+  "size": 25,
+  "totalElements": 1,
+  "totalPages": 1,
+  "first": true,
+  "last": true
+}
+```
+
+Consultas invalidas respondem `400` com `application/problem+json`, `errorCode:
+LOG_QUERY_INVALID`. Falha de acesso ao PostgreSQL responde `503` com
+`errorCode: LOG_QUERY_UNAVAILABLE`; detalhes internos, SQL e stack trace nao sao
+retornados. O endpoint nao permite editar, excluir ou reprocessar logs.

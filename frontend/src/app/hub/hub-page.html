@@ -5,6 +5,48 @@
     <p class="hub-introduction">
       Acompanhe seus documentos e acesse as operações disponíveis.
     </p>
+    <p
+      class="connection-status"
+      [class.connection-status-connected]="connectionState === 'CONNECTED'"
+      [class.connection-status-warning]="connectionState !== 'CONNECTED'"
+      role="status"
+      aria-live="polite"
+    >
+      {{ connectionStateLabel() }}
+    </p>
+    @if (notificationToast) {
+      <div class="notification-toast" role="status" aria-live="assertive" tabindex="0">
+        <strong>{{ notificationTitle(notificationToast) }}</strong>
+        <span>{{ notificationDocumentLabel(notificationToast) }}</span>
+      </div>
+    }
+    @if (notificationBannerEvents.length > 0) {
+      <section
+        class="notification-banner"
+        aria-label="Notificações desta sessão"
+        aria-live="polite"
+        tabindex="0"
+      >
+        <p class="eyebrow">Notificações</p>
+        <ul>
+          @for (event of notificationBannerEvents; track event.eventId) {
+            <li>
+              <strong>{{ notificationTitle(event) }}</strong>
+              @if (notificationDocumentExists(event)) {
+                <a
+                  [routerLink]="['/documents', event.documentId]"
+                  [attr.aria-label]="'Acompanhar ' + notificationDocumentLabel(event)"
+                >{{ notificationDocumentLabel(event) }}</a>
+              } @else {
+                <span class="notification-document-unavailable" aria-disabled="true">
+                  {{ notificationDocumentLabel(event) }} (indisponível)
+                </span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
   </header>
 
   <div class="hub-layout">

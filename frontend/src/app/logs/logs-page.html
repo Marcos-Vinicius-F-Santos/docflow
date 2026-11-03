@@ -1,0 +1,147 @@
+<main class="logs-page">
+  <header class="page-heading">
+    <p class="eyebrow">Operação</p>
+    <h1 id="logs-title">Logs operacionais</h1>
+    <p class="page-introduction">
+      Consulte os eventos técnicos registrados pelo DocFlow.
+    </p>
+  </header>
+
+  <form class="logs-filters" aria-labelledby="logs-filters-title" (ngSubmit)="applyFilters()">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Filtros</p>
+        <h2 id="logs-filters-title">Refine a consulta</h2>
+      </div>
+    </div>
+
+    <div class="filter-grid">
+      <label>
+        <span>Nível</span>
+        <select name="level" [(ngModel)]="filterLevel">
+          <option value="">Todos</option>
+          <option value="INFO">Informação</option>
+          <option value="WARN">Aviso</option>
+          <option value="ERROR">Erro</option>
+        </select>
+      </label>
+      <label>
+        <span>Serviço</span>
+        <input name="service" type="text" [(ngModel)]="filterService" />
+      </label>
+      <label>
+        <span>Componente</span>
+        <input name="component" type="text" [(ngModel)]="filterComponent" />
+      </label>
+      <label>
+        <span>Operação</span>
+        <input name="operation" type="text" [(ngModel)]="filterOperation" />
+      </label>
+      <label>
+        <span>Documento</span>
+        <input name="documentId" type="text" [(ngModel)]="filterDocumentId" />
+      </label>
+      <label>
+        <span>Correlação</span>
+        <input name="correlationId" type="text" [(ngModel)]="filterCorrelationId" />
+      </label>
+      <label>
+        <span>De</span>
+        <input name="occurredFrom" type="datetime-local" [(ngModel)]="filterOccurredFrom" />
+      </label>
+      <label>
+        <span>Até</span>
+        <input name="occurredTo" type="datetime-local" [(ngModel)]="filterOccurredTo" />
+      </label>
+    </div>
+
+    <div class="filter-actions">
+      <button type="submit">Aplicar filtros</button>
+      <button type="button" class="secondary-action" (click)="resetFilters()">Limpar filtros</button>
+    </div>
+  </form>
+
+  <section class="logs-shell" aria-labelledby="logs-list-title">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Consulta</p>
+        <h2 id="logs-list-title">Eventos registrados</h2>
+      </div>
+      @if (!isLoading && !error) {
+        <span>{{ totalElements }} {{ totalElements === 1 ? 'evento' : 'eventos' }}</span>
+      }
+    </div>
+
+    @if (isLoading) {
+      <p class="logs-state" aria-live="polite" aria-busy="true">Carregando logs...</p>
+    } @else if (error) {
+      <section class="logs-state logs-state-error" role="alert" aria-live="assertive">
+        <p>{{ error.message }}</p>
+        <button type="button" (click)="loadLogs()">Tentar novamente</button>
+      </section>
+    } @else if (logs.length === 0) {
+      <p class="logs-state" aria-live="polite">Nenhum evento encontrado.</p>
+    } @else {
+      <div class="logs-table-scroll">
+        <table>
+          <caption class="visually-hidden">Eventos operacionais registrados</caption>
+          <thead>
+            <tr>
+              <th scope="col">Quando</th>
+              <th scope="col">Nível</th>
+              <th scope="col">Serviço</th>
+              <th scope="col">Componente</th>
+              <th scope="col">Operação</th>
+              <th scope="col">Mensagem</th>
+              <th scope="col">Correlação</th>
+              <th scope="col">Documento</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of logs; track log.eventId) {
+              <tr>
+                <td>{{ formatDate(log.occurredAt) }}</td>
+                <td>
+                  <span class="level-badge" [class]="'level-' + log.level.toLowerCase()">
+                    {{ levelLabel(log.level) }}
+                  </span>
+                </td>
+                <td>{{ log.service }}</td>
+                <td>{{ log.component }}</td>
+                <td><code>{{ log.operation }}</code></td>
+                <td class="message-cell">{{ log.message }}</td>
+                <td><code>{{ log.correlationId || '—' }}</code></td>
+                <td>
+                  @if (isNavigableDocumentId(log.documentId)) {
+                    <a
+                      [routerLink]="['/documents', log.documentId]"
+                      [attr.aria-label]="'Acompanhar documento ' + log.documentId"
+                    >
+                      Acompanhar
+                    </a>
+                    <br />
+                    <code>{{ log.documentId }}</code>
+                  } @else {
+                    <code>{{ log.documentId || '—' }}</code>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPages > 0) {
+        <nav class="logs-pagination" aria-label="Paginação dos logs">
+          <button type="button" [disabled]="!hasPreviousPage() || isLoading" (click)="goToPage(page - 1)">
+            Anterior
+          </button>
+          <span aria-live="polite">Página {{ page + 1 }} de {{ totalPages }}</span>
+          <button type="button" [disabled]="!hasNextPage() || isLoading" (click)="goToPage(page + 1)">
+            Próxima
+          </button>
+        </nav>
+      }
+    }
+  </section>
+</main>

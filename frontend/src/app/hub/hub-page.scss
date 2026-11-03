@@ -31,6 +31,71 @@ h1 {
   line-height: 1.6;
 }
 
+.connection-status {
+  display: inline-flex;
+  margin: 0.75rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.connection-status-connected {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.connection-status-warning {
+  background: #fff4e5;
+  color: #9c2c00;
+}
+
+.notification-toast,
+.notification-banner {
+  margin-top: 1rem;
+  border: 1px solid #9fb3c8;
+  border-radius: 0.75rem;
+  background: #ebf8ff;
+  color: #102a43;
+}
+
+.notification-toast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.875rem 1rem;
+}
+
+.notification-banner {
+  padding: 1rem;
+}
+
+.notification-banner .eyebrow {
+  margin-bottom: 0.75rem;
+}
+
+.notification-banner ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.notification-banner li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.notification-banner a {
+  color: #0b69a3;
+  font-weight: 600;
+}
+
+.notification-document-unavailable {
+  color: #52606d;
+}
+
 .hub-navigation {
   display: flex;
   flex-wrap: wrap;

@@ -113,7 +113,25 @@ uma exclusão manual encontra o documento ausente e é tratada como idempotente.
 - A exclusão atrasada usa a fila RabbitMQ `docflow.document-deletion.delay.3h` com TTL
   de três horas; o timestamp persistido permanece como evidência e base para recuperação
   operacional.
+
 - A execução local deve preservar os volumes e validar a ordem das migrations antes de
   qualquer deploy. `specs/05-verificacao/` registra evidências de validação, mas a
   Spec da Feature e este documento definem o comportamento e o rollback operacional.
 - Nenhum deploy é autorizado sem revisão e aprovação explícita de Marcos.
+
+## Migration V7 - logs operacionais
+
+A migration `V7__create_application_logs.sql` cria a tabela `application_logs` para o
+histórico consultável de eventos operacionais. Ela é expand-only e não altera a tabela
+`documents` nem dados de documentos existentes.
+
+Colunas persistidas: `event_id` (chave única/idempotente), `schema_version`,
+`occurred_at`, `level`, `service`, `component`, `operation`, `message`,
+`correlation_id`, `document_id`, `details_json` e `persisted_at`. Os índices cobrem
+ordenação temporal, nível, serviço, documento e correlação.
+
+O job de retenção remove somente linhas com `occurred_at` anterior a três horas. A
+limpeza é idempotente, pode ser repetida com segurança e não remove documentos,
+notificações ou logs locais. O rollback operacional deve manter V7 aplicada e
+implantar uma versão compatível que ignore a tabela; não editar migrations já aplicadas
+nem executar `DROP TABLE` manualmente.

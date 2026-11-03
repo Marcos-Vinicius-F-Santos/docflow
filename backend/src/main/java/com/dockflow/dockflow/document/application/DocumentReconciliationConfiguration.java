@@ -14,6 +14,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Optional;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 
 /** Wires the internal reconciliation use case without adding a global worker layer. */
 @Configuration(proxyBeanMethods = false)
@@ -34,6 +36,8 @@ public class DocumentReconciliationConfiguration {
     DocumentReconciliationService documentReconciliationService(
         DocumentRepository documentRepository,
         DocumentStorage documentStorage,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher,
+        Optional<ApplicationLogRecorder> operationalLogRecorder,
         Clock reconciliationClock,
         @Value("${docflow.reconciliation.max-attempts:5}") long maxAttempts,
         @Value("${docflow.reconciliation.backoff:PT1M,PT5M,PT15M,PT30M,PT60M}") String backoff
@@ -43,7 +47,9 @@ public class DocumentReconciliationConfiguration {
             documentStorage,
             maxAttempts,
             reconciliationClock,
-            parseBackoff(backoff)
+            parseBackoff(backoff),
+            lifecycleEventPublisher,
+            operationalLogRecorder
         );
     }
 

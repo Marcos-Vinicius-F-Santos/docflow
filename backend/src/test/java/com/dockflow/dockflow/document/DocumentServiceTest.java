@@ -16,6 +16,10 @@ import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.application.DocumentStorageRequestPublisher;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEvent;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEventFactory;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogLocalWriter;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 @ExtendWith(MockitoExtension.class)
 public class DocumentServiceTest {
@@ -77,6 +83,19 @@ public class DocumentServiceTest {
         assertEquals(contentType, savedDocument.getContentType());
         assertEquals(sizeBytes, savedDocument.getSizeBytes());
         assertEquals(DocumentStatus.PENDING, savedDocument.getStatus());
+    }
+
+    @Test
+    void shouldEmitOperationalLogForAcceptedDocument() {
+        when(documentRepository.save(org.mockito.ArgumentMatchers.any(Document.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        AtomicReference<ApplicationLogEvent> captured = new AtomicReference<>();
+        documentService.configureOperationalLogging(recorder(captured), new ApplicationLogEventFactory());
+
+        Document document = documentService.registerDocument("accepted.pdf", "application/pdf", 10);
+
+        assertEquals("document.accepted", captured.get().operation());
+        assertEquals(document.getId(), captured.get().documentId());
     }
 
     @Test
@@ -377,6 +396,27 @@ public class DocumentServiceTest {
     }
 
     @Test
+    void shouldEmitOperationalLogAfterDocumentDeletion() {
+        Document document = new Document("document.txt", "text/plain", 4);
+        when(documentRepository.findByIdForUpdate(document.getId())).thenReturn(java.util.Optional.of(document));
+        AtomicReference<ApplicationLogEvent> captured = new AtomicReference<>();
+        DocumentService service = new DocumentService(
+            documentRepository,
+            new DocumentContentValidator(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(documentStorage),
+            Optional.of(documentStagingRemover)
+        );
+        service.configureOperationalLogging(recorder(captured), new ApplicationLogEventFactory());
+
+        service.delete(document.getId());
+
+        assertEquals("document.deleted", captured.get().operation());
+        assertEquals(document.getId(), captured.get().documentId());
+    }
+
+    @Test
     void shouldNotDeleteDatabaseRowWhenFinalStorageDeletionFails() {
         Document document = new Document("document.txt", "text/plain", 4);
         when(documentRepository.findByIdForUpdate(document.getId())).thenReturn(java.util.Optional.of(document));
@@ -485,6 +525,11 @@ public class DocumentServiceTest {
         assertEquals(DocumentStatus.FAILED, document.getStatus());
         assertThrows(IllegalStateException.class, document::startProcessing);
         assertThrows(IllegalStateException.class, document::markFailed);
+    }
+
+    private ApplicationLogRecorder recorder(AtomicReference<ApplicationLogEvent> captured) {
+        ApplicationLogLocalWriter writer = captured::set;
+        return new ApplicationLogRecorder(writer, Optional.empty(), Runnable::run);
     }
 
 }

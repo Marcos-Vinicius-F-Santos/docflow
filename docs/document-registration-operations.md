@@ -74,6 +74,23 @@ deve preservá-lo como deadline sem interromper thread à força.
 | `DOCFLOW_PROCESSING_TIMEOUT` | `docflow.processing.timeout` | Deadline do processamento | `PT3S` |
 | `DOCFLOW_RECONCILIATION_SCHEDULE_INTERVAL` | `docflow.reconciliation.schedule-interval` | Intervalo do scheduler interno | `PT1M` |
 
+### Notificações de e-mail
+
+As credenciais de notificação são carregadas somente pelo backend. Os nomes abaixo
+aparecem no `infra/.env.example` sem valores e devem ser fornecidos explicitamente pelo
+ambiente de execução quando o adaptador de e-mail for habilitado. Nunca os adicione ao
+frontend, ao bundle Angular ou a documentos versionados.
+
+| Variável | Propriedade backend | Finalidade | Valor versionado |
+|---|---|---|---|
+| `WEB3FORMS_ACCESS_KEY` | `docflow.notification.email.web3forms-access-key` | Access key da Web3Forms | nenhum; placeholder vazio |
+| `DOCFLOW_NOTIFICATION_DEFAULT_EMAIL` | `docflow.notification.email.default-recipient` | Destinatário temporário da instalação | nenhum; placeholder vazio |
+| `WEB3FORMS_API_URL` | `docflow.notification.email.web3forms-url` | Endpoint HTTP da Web3Forms | `https://api.web3forms.com/submit` |
+
+O endereço do destinatário e a API key não fazem parte do contrato WebSocket, da API
+REST ou de qualquer configuração do frontend. O procedimento implementado de retries,
+DLQ e envio provider-neutral está em [document-notifications.md](document-notifications.md).
+
 O bootstrap também aceita `BOOTSTRAP_MAX_ATTEMPTS` e
 `BOOTSTRAP_RETRY_DELAY_SECONDS` para controlar a espera operacional; ambos têm valores
 seguros no `.env.example` e não alteram a política de negócio.
@@ -334,3 +351,33 @@ permanece em três horas.
 O rollback não inclui edição direta no PostgreSQL, remoção em massa no MinIO ou alteração
 manual de mensagens. A decisão de limpeza/reconciliação deve ser registrada antes de
 qualquer ação destrutiva.
+
+## Operação de notificações
+
+Os eventos de ciclo de vida são publicados somente depois da transição persistida do
+documento: início em `PROCESSING`, conclusão em `COMPLETED`, falha em `FAILED`, aviso
+na terceira falha e exclusão após a remoção aprovada. O consumidor de notificações não
+altera documentos e confirma a mensagem somente depois do encaminhamento aos canais.
+
+O WebSocket está disponível em `/ws/notifications`. Ele faz broadcast para as abas
+ativas da instalação; não há autenticação, histórico ou replay nesta versão. Ao
+reconectar, o Hub consulta `GET /documents`, que permanece como fonte de verdade.
+
+As filas, exchanges, routing keys, TTL do aviso, DLQs, retries de e-mail e o contrato
+JSON estão na [referência operacional de notificações](document-notifications.md).
+Para investigar uma DLQ, preserve a mensagem e correlacione `eventId` e `documentId`.
+Mensagem inválida ou falha do canal não deve gerar retry do documento nem alterar seu
+status.
+
+Com o ambiente local ativo, valide o canal sem e-mail externo:
+
+```powershell
+Set-Location E:\Projects\docflow\backend
+.\mvnw.cmd -Dtest=DocumentNotificationRabbitRealIntegrationTest test
+.\mvnw.cmd -Dtest=DocumentRegistrationEndToEndTest test
+```
+
+O adaptador Web3Forms usa somente `WEB3FORMS_ACCESS_KEY`,
+`DOCFLOW_NOTIFICATION_DEFAULT_EMAIL` e `WEB3FORMS_API_URL` no backend. Sem esses valores, o envio real não
+deve ser habilitado; os testes usam HTTP local e classificam a mensagem como erro
+permanente quando a configuração obrigatória está ausente.

@@ -21,6 +21,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
 import java.io.ByteArrayInputStream;
@@ -40,6 +41,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DocumentController.class)
@@ -390,7 +393,11 @@ class DocumentControllerTest {
             "document.txt"
         ));
 
-        mockMvc.perform(get("/documents/{documentId}/content", id))
+        MvcResult result = mockMvc.perform(get("/documents/{documentId}/content", id))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
             .andExpect(status().isOk())
             .andExpect(content().bytes(bytes))
             .andExpect(header().string("Content-Type", "text/plain"))
@@ -410,7 +417,11 @@ class DocumentControllerTest {
             "document.pdf"
         ));
 
-        mockMvc.perform(get("/documents/{documentId}/preview", id))
+        MvcResult result = mockMvc.perform(get("/documents/{documentId}/preview", id))
+            .andExpect(request().asyncStarted())
+            .andReturn();
+
+        mockMvc.perform(asyncDispatch(result))
             .andExpect(status().isOk())
             .andExpect(content().bytes(bytes))
             .andExpect(header().string("Content-Type", "application/pdf"))

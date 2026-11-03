@@ -112,7 +112,7 @@ class RabbitMqDocumentDeletionRealIntegrationTest {
 
         var connection = connectionFactory.createConnection();
         Channel channel = connection.createChannel(false);
-        GetResponse received = channel.basicGet(DocumentStorageRabbitTopology.DELETION_DELAY_QUEUE, false);
+        GetResponse received = awaitBasicGet(channel, DocumentStorageRabbitTopology.DELETION_DELAY_QUEUE);
 
         assertNotNull(received);
         assertEquals(2, received.getProps().getDeliveryMode());
@@ -140,7 +140,7 @@ class RabbitMqDocumentDeletionRealIntegrationTest {
         publishRequested(message);
 
         Channel channel = connectionFactory.createConnection().createChannel(false);
-        GetResponse received = channel.basicGet(DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE, false);
+        GetResponse received = awaitBasicGet(channel, DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE);
         assertNotNull(received);
 
         new RabbitMqDocumentDeletionMessageHandler(consumer).handle(
@@ -163,7 +163,7 @@ class RabbitMqDocumentDeletionRealIntegrationTest {
         publishRequested(message);
 
         Channel channel = connectionFactory.createConnection().createChannel(false);
-        GetResponse received = channel.basicGet(DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE, false);
+        GetResponse received = awaitBasicGet(channel, DocumentStorageRabbitTopology.DELETION_REQUESTED_QUEUE);
         assertNotNull(received);
 
         new RabbitMqDocumentDeletionMessageHandler(consumer).handle(
@@ -182,6 +182,18 @@ class RabbitMqDocumentDeletionRealIntegrationTest {
             DocumentStorageRabbitTopology.DELETION_REQUESTED_ROUTING_KEY,
             message
         );
+    }
+
+    private GetResponse awaitBasicGet(Channel channel, String queue) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (System.nanoTime() < deadline) {
+            GetResponse received = channel.basicGet(queue, false);
+            if (received != null) {
+                return received;
+            }
+            Thread.sleep(25);
+        }
+        return null;
     }
 
     private DocumentDeletionScheduledMessage message(UUID documentId) {

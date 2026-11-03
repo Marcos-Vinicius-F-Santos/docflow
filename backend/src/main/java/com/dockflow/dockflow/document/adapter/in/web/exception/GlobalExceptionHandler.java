@@ -10,6 +10,13 @@ import com.dockflow.dockflow.document.application.DocumentContentValidator;
 import com.dockflow.dockflow.document.application.DocumentPublicationException;
 import com.dockflow.dockflow.document.exception.DocumentRetryNotEligibleException;
 import com.dockflow.dockflow.document.exception.DocumentRetryStorageUnavailableException;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogContext;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEventFactory;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogLevel;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEventFactory;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogQueryUnavailableException;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogQueryValidationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,8 +24,23 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import java.util.Map;
+import java.util.Optional;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private Optional<ApplicationLogRecorder> operationalLogRecorder = Optional.empty();
+    private ApplicationLogEventFactory operationalLogEventFactory = new ApplicationLogEventFactory();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureOperationalLogging(
+        Optional<ApplicationLogRecorder> recorder,
+        Optional<ApplicationLogEventFactory> eventFactory
+    ) {
+        recorder.ifPresent(value -> this.operationalLogRecorder = Optional.of(value));
+        eventFactory.ifPresent(value -> this.operationalLogEventFactory = value);
+    }
 
     @ExceptionHandler(DocumentContentValidationException.class)
     ProblemDetail handleDocumentContentValidation(DocumentContentValidationException exception) {
@@ -31,6 +53,25 @@ public class GlobalExceptionHandler {
         if (exception.getInvalidField() != null) {
             problem.setProperty("invalidField", exception.getInvalidField());
         }
+        return problem;
+    }
+
+    @ExceptionHandler(ApplicationLogQueryValidationException.class)
+    ProblemDetail handleApplicationLogQueryValidation(ApplicationLogQueryValidationException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setTitle("Invalid operational log query");
+        problem.setProperty("errorCode", "LOG_QUERY_INVALID");
+        return problem;
+    }
+
+    @ExceptionHandler(ApplicationLogQueryUnavailableException.class)
+    ProblemDetail handleApplicationLogQueryUnavailable(ApplicationLogQueryUnavailableException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Operational logs are temporarily unavailable"
+        );
+        problem.setTitle("Operational logs unavailable");
+        problem.setProperty("errorCode", "LOG_QUERY_UNAVAILABLE");
         return problem;
     }
 
@@ -100,6 +141,15 @@ public class GlobalExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, exception.getMessage());
         problem.setTitle(title);
         problem.setProperty("errorCode", errorCode);
+        operationalLogRecorder.ifPresent(recorder -> recorder.record(operationalLogEventFactory.create(
+            ApplicationLogLevel.ERROR,
+            "document-api",
+            "http-exception-handler",
+            "http.error",
+            title,
+            ApplicationLogContext.empty(),
+            Map.of("errorCode", errorCode)
+        )));
         return problem;
     }
 }

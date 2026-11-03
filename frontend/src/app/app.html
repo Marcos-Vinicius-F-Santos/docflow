@@ -1,1 +1,11 @@
+<header class="app-shell">
+  <a class="app-brand" routerLink="/" aria-label="DocFlow, início">DocFlow</a>
+  <nav class="app-navigation" aria-label="Navegação principal">
+    <a routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">
+      Hub
+    </a>
+    <a routerLink="/logs" routerLinkActive="is-active">Logs operacionais</a>
+  </nav>
+</header>
+
 <router-outlet />

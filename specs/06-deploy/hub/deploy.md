@@ -63,7 +63,8 @@ Iniciar o backend com as variáveis de `infra/.env` carregadas no processo e ini
 frontend pelo procedimento de `docs/frontend.md`. Confirmar:
 
 1. `GET /actuator/health` retorna `UP`.
-2. `/` abre o Hub; `/documents/new`, `/documents` e `/documents/{id}` continuam acessíveis.
+2. `/` abre o Hub e `/documents/{id}` abre o acompanhamento; o envio continua no Hub e
+   não há navegação separada para `/documents/new` ou `/documents` no frontend.
 3. Upload válido retorna `201`, `Location` e `PENDING`, e o usuário permanece no Hub.
 4. O documento chega a `COMPLETED`; o objeto final existe e o staging é removido.
 5. Documentos `FAILED` exibem `falhas`, `isExcluded` e `exclusionScheduledAt`.
@@ -111,3 +112,27 @@ Registrar fora do repositório:
 - estados observados (`PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`);
 - resultado de retry, terceira falha, exclusão atrasada e exclusão manual;
 - aprovação de Marcos antes de qualquer deploy.
+
+## Notificações de documentos
+
+O contrato, o WebSocket, a topologia RabbitMQ, os retries/DLQs de e-mail e a ausência
+de replay estão em [`docs/document-notifications.md`](../../../docs/document-notifications.md)
+e no [ADR-008](../../02-arquitetura/DECISAO/ADR-008-notificacoes-rabbitmq-websocket.md).
+
+Antes de habilitar o canal de e-mail, forneça `WEB3FORMS_ACCESS_KEY` e
+`DOCFLOW_NOTIFICATION_DEFAULT_EMAIL` somente ao backend. O `WEB3FORMS_API_URL` pode
+permanecer no valor padrão. Sem configuração completa, o smoke
+test deve confirmar que nenhum e-mail real é enviado; falhas são classificadas e
+encaminhadas para a DLQ sem alterar o documento.
+
+Valide o canal em ambiente local com:
+
+```powershell
+Set-Location E:\Projects\docflow\backend
+.\mvnw.cmd -Dtest=DocumentNotificationRabbitRealIntegrationTest test
+.\mvnw.cmd -Dtest=DocumentRegistrationEndToEndTest test
+```
+
+O Hub deve informar conexão WebSocket, reconexão e atualização da lista sem bloquear
+upload, retry, download ou exclusão. Eventos perdidos durante desconexão não são
+reproduzidos; após reconectar, `GET /documents` recupera o estado atual.

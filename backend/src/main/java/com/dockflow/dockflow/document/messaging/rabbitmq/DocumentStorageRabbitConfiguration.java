@@ -2,6 +2,8 @@ package com.dockflow.dockflow.document.messaging.rabbitmq;
 
 import com.dockflow.dockflow.document.DocumentRepository;
 import com.dockflow.dockflow.document.application.DocumentDeletionPublisher;
+import com.dockflow.dockflow.document.application.DocumentLifecycleEventPublisher;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
@@ -82,14 +84,19 @@ public class DocumentStorageRabbitConfiguration {
         DocumentStagingReader stagingReader,
         DocumentStagingRemover stagingRemover,
         DocumentStorage documentStorage,
-        Optional<DocumentDeletionPublisher> deletionPublisher
+        Optional<DocumentDeletionPublisher> deletionPublisher,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher,
+        Optional<ApplicationLogRecorder> operationalLogRecorder
     ) {
         return new DocumentStorageMessageConsumer(
             documentRepository,
             stagingReader,
             stagingRemover,
             documentStorage,
-            deletionPublisher
+            deletionPublisher,
+            lifecycleEventPublisher,
+            java.time.Clock.systemUTC(),
+            operationalLogRecorder
         );
     }
 
@@ -111,9 +118,16 @@ public class DocumentStorageRabbitConfiguration {
     DocumentDeletionMessageConsumer documentDeletionMessageConsumer(
         DocumentRepository documentRepository,
         DocumentStorage documentStorage,
-        DocumentStagingRemover stagingRemover
+        DocumentStagingRemover stagingRemover,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher
     ) {
-        return new DocumentDeletionMessageConsumer(documentRepository, documentStorage, stagingRemover);
+        return new DocumentDeletionMessageConsumer(
+            documentRepository,
+            documentStorage,
+            stagingRemover,
+            lifecycleEventPublisher,
+            java.time.Clock.systemUTC()
+        );
     }
 
     @Bean

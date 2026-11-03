@@ -4,6 +4,8 @@ import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentRepository;
 import com.dockflow.dockflow.document.DocumentStatus;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEvent;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +17,8 @@ import java.util.UUID;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -57,6 +61,36 @@ class DocumentReconciliationServiceTest {
         verify(documentStorage).exists(objectKey);
         verify(documentStorage, never()).store(any(), any(), anyLong(), any());
         verify(documentStorage, never()).delete(any());
+    }
+
+    @Test
+    void shouldEmitWarningWhenReconciliationSchedulesAnotherAttempt() {
+        UUID documentId = UUID.randomUUID();
+        Document document = new Document(documentId, "document.pdf", "application/pdf", 10);
+        document.registerStorageObjectKey("documents/retry/content");
+        document.startProcessing();
+        document.scheduleReconciliation(NOW.minusSeconds(1));
+        AtomicReference<ApplicationLogEvent> captured = new AtomicReference<>();
+
+        when(documentRepository.claimReconciliation(documentId, NOW, 3))
+            .thenReturn(Optional.of(document));
+        when(documentStorage.exists(document.getObjectKey())).thenReturn(false);
+
+        DocumentReconciliationService service = new DocumentReconciliationService(
+            documentRepository,
+            documentStorage,
+            3,
+            CLOCK,
+            List.of(java.time.Duration.ofSeconds(60), java.time.Duration.ofMinutes(5), java.time.Duration.ofMinutes(15)),
+            Optional.empty(),
+            Optional.of(new ApplicationLogRecorder(captured::set, Optional.empty(), Runnable::run))
+        );
+
+        service.reconcile(documentId);
+
+        assertEquals("document.reconciliation.retry", captured.get().operation());
+        assertEquals("WARN", captured.get().level().name());
+        assertEquals(documentId, captured.get().documentId());
     }
 
     @Test

@@ -1,0 +1,57 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(100% - 2rem, 72rem);
+  margin: 0 auto;
+  padding: 1rem 0;
+}
+
+.app-brand {
+  color: #102a43;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.app-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.app-navigation a {
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.45rem;
+  color: #486581;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-navigation a:hover,
+.app-navigation a:focus-visible,
+.app-navigation a.is-active {
+  background: #eaf2fb;
+  color: #0b69a3;
+}
+
+.app-navigation a:focus-visible,
+.app-brand:focus-visible {
+  outline: 3px solid #fdb022;
+  outline-offset: 3px;
+}
+
+@media (max-width: 38rem) {
+  .app-shell {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

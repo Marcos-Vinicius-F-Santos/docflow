@@ -12,6 +12,9 @@ import { DocumentApiService } from '../document/document-api.service';
 import { DocumentApiError, mapDocumentError } from '../document/document-error.mapper';
 import { DocumentFileValidator } from '../document/document-file-validator';
 import { DocumentResponse } from '../document/document.models';
+import { DocumentNotificationEvent } from '../notifications/notification-event.models';
+import { NotificationConnectionState } from '../notifications/notification-event.models';
+import { NotificationSessionState } from '../notifications/notification-session-state.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,7 +27,9 @@ export class HubPage {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly documentApi = inject(DocumentApiService);
+  private readonly notificationState = inject(NotificationSessionState);
   private readonly validator = new DocumentFileValidator();
+  private hasEstablishedNotificationConnection = false;
 
   documents: DocumentResponse[] = [];
   isLoading = true;
@@ -35,9 +40,29 @@ export class HubPage {
   uploadProgress = 0;
   uploadInProgress = false;
   isDragActive = false;
+  notificationBannerEvents: DocumentNotificationEvent[] = [];
+  notificationToast: DocumentNotificationEvent | null = null;
+  connectionState: NotificationConnectionState = 'DISCONNECTED';
+  private notificationToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.loadDocuments();
+    this.notificationState.connectionState$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((state) => {
+        this.connectionState = state;
+        if (state === 'CONNECTED') {
+          if (this.hasEstablishedNotificationConnection) {
+            this.loadDocuments();
+          }
+          this.hasEstablishedNotificationConnection = true;
+        }
+        this.changeDetector.markForCheck();
+      });
+    this.notificationState.events$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => this.presentNotification(event));
+    this.notificationState.start();
   }
 
   loadDocuments(): void {
@@ -187,6 +212,81 @@ export class HubPage {
   private documentDate(document: DocumentResponse): number {
     const updatedAt = Date.parse(document.updatedAt);
     return Number.isNaN(updatedAt) ? Date.parse(document.createdAt) : updatedAt;
+  }
+
+  notificationTitle(event: DocumentNotificationEvent): string {
+    switch (event.type) {
+      case 'DOCUMENT_PROCESSING_STARTED':
+        return 'Processamento iniciado';
+      case 'DOCUMENT_COMPLETED':
+        return 'Documento concluído';
+      case 'DOCUMENT_FAILED':
+        return 'Falha no documento';
+      case 'DOCUMENT_DELETION_WARNING':
+        return 'Exclusão programada';
+      case 'DOCUMENT_DELETED':
+        return 'Documento excluído';
+    }
+  }
+
+  notificationDocumentExists(event: DocumentNotificationEvent): boolean {
+    return this.documents.some((document) => document.id === event.documentId);
+  }
+
+  notificationDocumentLabel(event: DocumentNotificationEvent): string {
+    return `Documento ${event.documentId}`;
+  }
+
+  connectionStateLabel(): string {
+    switch (this.connectionState) {
+      case 'CONNECTING':
+        return 'Conectando notificações';
+      case 'CONNECTED':
+        return 'Notificações conectadas';
+      case 'RECONNECTING':
+        return 'Reconectando notificações';
+      case 'DISCONNECTED':
+        return 'Notificações desconectadas';
+    }
+  }
+
+  private presentNotification(event: DocumentNotificationEvent): void {
+    this.applyNotificationToDocuments(event);
+    this.notificationBannerEvents = [...this.notificationBannerEvents, event];
+    this.notificationToast = event;
+    if (this.notificationToastTimer !== null) {
+      clearTimeout(this.notificationToastTimer);
+    }
+    this.notificationToastTimer = setTimeout(() => {
+      this.notificationToast = null;
+      this.notificationToastTimer = null;
+      this.changeDetector.markForCheck();
+    }, 5000);
+    this.changeDetector.markForCheck();
+  }
+
+  private applyNotificationToDocuments(event: DocumentNotificationEvent): void {
+    if (event.type === 'DOCUMENT_DELETED') {
+      this.documents = this.documents.filter((document) => document.id !== event.documentId);
+      return;
+    }
+
+    if (!this.notificationDocumentExists(event)) {
+      return;
+    }
+
+    this.documents = this.documents.map((document) => {
+      if (document.id !== event.documentId) {
+        return document;
+      }
+      return {
+        ...document,
+        status: event.status ?? document.status,
+        falhas: event.failureCount ?? document.falhas,
+        exclusionScheduledAt: event.exclusionScheduledAt ?? document.exclusionScheduledAt,
+        updatedAt: event.occurredAt,
+      };
+    });
   }
 
   private handleUploadResponse(response: HttpResponse<DocumentResponse>): void {

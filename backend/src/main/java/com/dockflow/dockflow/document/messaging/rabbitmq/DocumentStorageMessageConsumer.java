@@ -4,6 +4,11 @@ import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentRepository;
 import com.dockflow.dockflow.document.DocumentStatus;
 import com.dockflow.dockflow.document.application.DocumentDeletionPublisher;
+import com.dockflow.dockflow.document.application.DocumentLifecycleEventPublisher;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogContext;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogEventFactory;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogLevel;
+import com.dockflow.dockflow.document.application.logging.ApplicationLogRecorder;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
@@ -17,6 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Optional;
+import java.util.Map;
 
 /**
  * Provider-neutral processing core for a document-storage message.
@@ -31,7 +37,11 @@ public class DocumentStorageMessageConsumer {
     private final DocumentStagingRemover stagingRemover;
     private final DocumentStorage documentStorage;
     private final Optional<DocumentDeletionPublisher> deletionPublisher;
+    private final Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher;
+    private final DocumentLifecycleEventMapper lifecycleEventMapper;
     private final Clock clock;
+    private final Optional<ApplicationLogRecorder> operationalLogRecorder;
+    private final ApplicationLogEventFactory operationalLogEventFactory;
 
     public DocumentStorageMessageConsumer(
         DocumentRepository documentRepository,
@@ -39,7 +49,16 @@ public class DocumentStorageMessageConsumer {
         DocumentStagingRemover stagingRemover,
         DocumentStorage documentStorage
     ) {
-        this(documentRepository, stagingReader, stagingRemover, documentStorage, Optional.empty(), Clock.systemUTC());
+        this(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            Optional.empty(),
+            Optional.empty(),
+            Clock.systemUTC(),
+            Optional.empty()
+        );
     }
 
     public DocumentStorageMessageConsumer(
@@ -49,7 +68,16 @@ public class DocumentStorageMessageConsumer {
         DocumentStorage documentStorage,
         Optional<DocumentDeletionPublisher> deletionPublisher
     ) {
-        this(documentRepository, stagingReader, stagingRemover, documentStorage, deletionPublisher, Clock.systemUTC());
+        this(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            deletionPublisher,
+            Optional.empty(),
+            Clock.systemUTC(),
+            Optional.empty()
+        );
     }
 
     public DocumentStorageMessageConsumer(
@@ -59,7 +87,16 @@ public class DocumentStorageMessageConsumer {
         DocumentStorage documentStorage,
         Clock clock
     ) {
-        this(documentRepository, stagingReader, stagingRemover, documentStorage, Optional.empty(), clock);
+        this(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            Optional.empty(),
+            Optional.empty(),
+            clock,
+            Optional.empty()
+        );
     }
 
     public DocumentStorageMessageConsumer(
@@ -70,31 +107,82 @@ public class DocumentStorageMessageConsumer {
         Optional<DocumentDeletionPublisher> deletionPublisher,
         Clock clock
     ) {
+        this(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            deletionPublisher,
+            Optional.empty(),
+            clock,
+            Optional.empty()
+        );
+    }
+
+    public DocumentStorageMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStagingReader stagingReader,
+        DocumentStagingRemover stagingRemover,
+        DocumentStorage documentStorage,
+        Optional<DocumentDeletionPublisher> deletionPublisher,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher,
+        Clock clock
+    ) {
+        this(
+            documentRepository,
+            stagingReader,
+            stagingRemover,
+            documentStorage,
+            deletionPublisher,
+            lifecycleEventPublisher,
+            clock,
+            Optional.empty()
+        );
+    }
+
+    public DocumentStorageMessageConsumer(
+        DocumentRepository documentRepository,
+        DocumentStagingReader stagingReader,
+        DocumentStagingRemover stagingRemover,
+        DocumentStorage documentStorage,
+        Optional<DocumentDeletionPublisher> deletionPublisher,
+        Optional<DocumentLifecycleEventPublisher> lifecycleEventPublisher,
+        Clock clock,
+        Optional<ApplicationLogRecorder> operationalLogRecorder
+    ) {
         this.documentRepository = documentRepository;
         this.stagingReader = stagingReader;
         this.stagingRemover = stagingRemover;
         this.documentStorage = documentStorage;
         this.deletionPublisher = deletionPublisher;
+        this.lifecycleEventPublisher = lifecycleEventPublisher;
+        this.lifecycleEventMapper = new DocumentLifecycleEventMapper();
         this.clock = clock;
+        this.operationalLogRecorder = operationalLogRecorder == null ? Optional.empty() : operationalLogRecorder;
+        this.operationalLogEventFactory = new ApplicationLogEventFactory(clock);
     }
 
     @Transactional
     public ProcessingResult process(DocumentStorageRequestedMessage message) {
         validate(message);
         UUID documentId = message.documentId();
+        record(ApplicationLogLevel.INFO, "document.processing.started", "Document processing started", documentId, Map.of());
         log.atInfo().addKeyValue("documentId", documentId).log("document storage consumption started");
 
-        int claimed = documentRepository.claimForProcessing(documentId, Instant.now(clock));
+        Instant claimedAt = Instant.now(clock);
+        int claimed = documentRepository.claimForProcessing(documentId, claimedAt);
         if (claimed == 0) {
             Document current = documentRepository.findById(documentId).orElse(null);
             if (current != null && current.getStatus() == DocumentStatus.COMPLETED) {
                 log.atInfo().addKeyValue("documentId", documentId)
                     .log("document storage duplicate already completed");
+                record(ApplicationLogLevel.INFO, "document.processing.duplicate", "Document was already completed", documentId, Map.of());
                 return ProcessingResult.acknowledged(documentId);
             }
 
             log.atWarn().addKeyValue("documentId", documentId)
                 .log("document storage claim disputed; retry required");
+            record(ApplicationLogLevel.WARN, "document.processing.retry", "Document processing claim disputed", documentId, Map.of());
             return ProcessingResult.retryKeepingProcessing(documentId);
         }
 
@@ -103,12 +191,17 @@ public class DocumentStorageMessageConsumer {
                 "Document does not exist: " + documentId
             ));
 
+        publishProcessingStarted(document, claimedAt);
+
         try {
             if (documentStorage.exists(message.objectKey())) {
                 document.markCompleted(message.objectKey());
                 documentRepository.save(document);
+                documentRepository.flush();
+                publishCompleted(document);
                 log.atInfo().addKeyValue("documentId", documentId)
                     .log("document storage duplicate final object already exists");
+                record(ApplicationLogLevel.INFO, "document.processing.completed", "Document storage already existed", documentId, Map.of());
                 return ProcessingResult.acknowledged(documentId);
             }
 
@@ -122,16 +215,27 @@ public class DocumentStorageMessageConsumer {
                 stagingRemover.delete(message.contentReference());
                 document.markCompleted(message.objectKey());
                 documentRepository.save(document);
+                documentRepository.flush();
             }
+
+            publishCompleted(document);
 
             log.atInfo().addKeyValue("documentId", documentId)
                 .log("document storage consumption succeeded");
+            record(ApplicationLogLevel.INFO, "document.processing.completed", "Document storage completed", documentId, Map.of());
             return ProcessingResult.acknowledged(documentId);
         } catch (DocumentStorageMessageValidationException exception) {
             throw exception;
         } catch (DocumentStorageException exception) {
             log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
                 .log("document storage consumption failed");
+            record(
+                exception.getFailureType().isRetryable() ? ApplicationLogLevel.WARN : ApplicationLogLevel.ERROR,
+                exception.getFailureType().isRetryable() ? "document.processing.retry" : "document.processing.failed",
+                "Document storage operation failed",
+                documentId,
+                Map.of("failureType", exception.getFailureType().name())
+            );
             if (!exception.getFailureType().isRetryable()) {
                 markFailed(document);
                 return ProcessingResult.deadLetter(documentId);
@@ -142,6 +246,7 @@ public class DocumentStorageMessageConsumer {
         } catch (IOException exception) {
             log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
                 .log("staged content could not be read");
+            record(ApplicationLogLevel.WARN, "document.processing.retry", "Staged content could not be read", documentId, Map.of());
             return ProcessingResult.retryKeepingProcessing(documentId);
         }
     }
@@ -167,15 +272,82 @@ public class DocumentStorageMessageConsumer {
         document.markFailed(Instant.now(clock));
         if (schedulesDeletion) {
             documentRepository.saveAndFlush(document);
+            publishFailed(document);
+            publishDeletionWarningScheduled(document);
             deletionPublisher.ifPresent(publisher -> publisher.publish(
                 new DocumentDeletionPublisher.DocumentDeletionScheduled(
                     DocumentStorageRabbitTopology.DELETION_MESSAGE_SCHEMA_VERSION,
                     document.getId()
                 )
             ));
+            record(
+                ApplicationLogLevel.ERROR,
+                "document.processing.failed",
+                "Document processing failed and deletion was scheduled",
+                document.getId(),
+                Map.of("failureCount", document.getFailureCount())
+            );
             return;
         }
         documentRepository.save(document);
+        documentRepository.flush();
+        publishFailed(document);
+        record(
+            ApplicationLogLevel.ERROR,
+            "document.processing.failed",
+            "Document processing permanently failed",
+            document.getId(),
+            Map.of("failureCount", document.getFailureCount())
+        );
+    }
+
+    private void publishProcessingStarted(Document document, Instant occurredAt) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.processingStarted(document, occurredAt));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", document.getId()).setCause(exception)
+                    .log("document processing started notification could not be published");
+                record(ApplicationLogLevel.WARN, "notification.lifecycle.publish", "Processing notification could not be published", document.getId(), Map.of());
+            }
+        });
+    }
+
+    private void publishCompleted(Document document) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.completed(document, Instant.now(clock)));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", document.getId()).setCause(exception)
+                    .log("document completed notification could not be published");
+                record(ApplicationLogLevel.WARN, "notification.lifecycle.publish", "Completed notification could not be published", document.getId(), Map.of());
+            }
+        });
+    }
+
+    private void publishFailed(Document document) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                publisher.publish(lifecycleEventMapper.failed(document, Instant.now(clock)));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", document.getId()).setCause(exception)
+                    .log("document failed notification could not be published");
+                record(ApplicationLogLevel.WARN, "notification.lifecycle.publish", "Failed notification could not be published", document.getId(), Map.of());
+            }
+        });
+    }
+
+    private void publishDeletionWarningScheduled(Document document) {
+        lifecycleEventPublisher.ifPresent(publisher -> {
+            try {
+                Instant warningAt = document.getExclusionScheduledAt().minus(java.time.Duration.ofMinutes(30));
+                publisher.scheduleDeletionWarning(lifecycleEventMapper.deletionWarning(document, warningAt));
+            } catch (RuntimeException exception) {
+                log.atWarn().addKeyValue("documentId", document.getId()).setCause(exception)
+                    .log("document deletion warning could not be scheduled");
+                record(ApplicationLogLevel.WARN, "notification.deletion-warning.publish", "Deletion warning could not be scheduled", document.getId(), Map.of());
+            }
+        });
     }
 
     private void validate(DocumentStorageRequestedMessage message) {
@@ -199,6 +371,24 @@ public class DocumentStorageMessageConsumer {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private void record(
+        ApplicationLogLevel level,
+        String operation,
+        String message,
+        UUID documentId,
+        Map<String, ?> details
+    ) {
+        operationalLogRecorder.ifPresent(recorder -> recorder.record(operationalLogEventFactory.create(
+            level,
+            "document-api",
+            "document-storage-consumer",
+            operation,
+            message,
+            new ApplicationLogContext(null, documentId),
+            details
+        )));
     }
 
     public record ProcessingResult(
