@@ -1,14 +1,13 @@
 import { HttpClient, HttpEvent, HttpRequest, HttpResponse } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { DocumentResponse } from './document.models';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentApiService {
+  private readonly http = inject(HttpClient);
   private readonly documentsUrl = environment.documentApiBaseUrl;
-
-  constructor(private readonly http: HttpClient) {}
 
   upload(file: File): Observable<HttpEvent<DocumentResponse>> {
     const formData = new FormData();

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable, EMPTY, defer, merge, of, timer } from 'rxjs';
 import { exhaustMap, takeWhile } from 'rxjs/operators';
 import { DocumentApiService } from './document-api.service';
@@ -8,7 +8,7 @@ export const DOCUMENT_STATUS_POLL_INTERVAL_MS = 3_000;
 
 @Injectable({ providedIn: 'root' })
 export class DocumentStatusPollerService {
-  constructor(private readonly documentApi: DocumentApiService) {}
+  private readonly documentApi = inject(DocumentApiService);
 
   observe(
     documentId: string,

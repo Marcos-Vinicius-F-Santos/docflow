@@ -1,14 +1,13 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApplicationLogPageResponse, ApplicationLogQuery } from './logs.models';
 
 @Injectable({ providedIn: 'root' })
 export class LogsApiService {
+  private readonly http = inject(HttpClient);
   private readonly logsUrl = environment.applicationLogsApiUrl;
-
-  constructor(private readonly http: HttpClient) {}
 
   find(query: ApplicationLogQuery = {}): Observable<ApplicationLogPageResponse> {
     let params = new HttpParams();

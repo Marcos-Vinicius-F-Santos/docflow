@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test --isolate=false"
+    "test": "ng test --isolate=false",
+    "lint": "ng lint"
   },
   "private": true,
   "packageManager": "npm@12.0.2",
@@ -26,9 +27,13 @@
     "@angular/build": "22.1.8",
     "@angular/cli": "22.1.8",
     "@angular/compiler-cli": "22.1.7",
+    "@eslint/js": "^10.0.1",
+    "angular-eslint": "22.6.0",
+    "eslint": "^10.12.0",
     "jsdom": "28.0.0",
     "prettier": "3.8.1",
     "typescript": "6.0.2",
+    "typescript-eslint": "8.71.0",
     "vitest": "4.0.8"
   }
 }

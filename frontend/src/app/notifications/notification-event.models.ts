@@ -5,7 +5,7 @@ export type DocumentNotificationType =
   | 'DOCUMENT_DELETION_WARNING'
   | 'DOCUMENT_DELETED';
 
-export type DocumentNotificationEvent = {
+export interface DocumentNotificationEvent {
   eventId: string;
   schemaVersion: 1;
   type: DocumentNotificationType;
@@ -14,7 +14,7 @@ export type DocumentNotificationEvent = {
   status?: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   failureCount?: number;
   exclusionScheduledAt?: string;
-};
+}
 
 export type NotificationConnectionState =
   | 'DISCONNECTED'

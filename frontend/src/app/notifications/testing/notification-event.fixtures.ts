@@ -1,4 +1,4 @@
-export type NotificationEventFixture = {
+export interface NotificationEventFixture {
   eventId: string;
   schemaVersion: 1;
   type:
@@ -12,7 +12,7 @@ export type NotificationEventFixture = {
   status?: 'PROCESSING' | 'COMPLETED' | 'FAILED';
   failureCount?: number;
   exclusionScheduledAt?: string;
-};
+}
 
 export const notificationEventFixtures = [
   {

@@ -1,4 +1,6 @@
-export type MockWebSocketMessageEvent = { data: string };
+export interface MockWebSocketMessageEvent {
+  data: string;
+}
 
 export class MockWebSocket {
   static readonly CONNECTING = 0;
