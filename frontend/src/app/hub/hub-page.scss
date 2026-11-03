@@ -125,15 +125,24 @@ h1 {
 .hub-upload {
   margin: 0;
   padding: 1.5rem;
-  border: 1px solid #d9e2ec;
-  border-radius: 0.75rem;
-  background: #f8fafc;
 }
 
 .hub-upload h2 {
   margin: 0;
   color: #243b53;
   font-size: 1.5rem;
+}
+
+.hub-upload,
+.hub-document-list,
+.hub-sidebar section {
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.hub-upload {
+  background: #f8fafc;
 }
 
 .drop-zone {
@@ -217,7 +226,8 @@ button:focus-visible {
   margin-top: 1rem;
 }
 
-.upload-actions button {
+.upload-actions button,
+.hub-state button {
   min-height: 2.5rem;
   padding: 0.5rem 1rem;
   border: 1px solid #0b69a3;
@@ -243,9 +253,6 @@ button:focus-visible {
 .hub-document-list {
   margin: 0;
   padding: 1.5rem;
-  border: 1px solid #d9e2ec;
-  border-radius: 0.75rem;
-  background: #fff;
 }
 
 .section-heading {
@@ -281,18 +288,6 @@ button:focus-visible {
 .hub-state-error {
   background: #fff5f5;
   color: #b42318;
-}
-
-.hub-state button {
-  min-height: 2.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid #0b69a3;
-  border-radius: 0.5rem;
-  background: #0b69a3;
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
 }
 
 .document-list {
@@ -373,7 +368,6 @@ button:focus-visible {
   }
 
 }
-
 .state-icon {
   display: inline-grid;
   width: 1.5rem;
@@ -425,9 +419,6 @@ button:focus-visible {
 
 .hub-sidebar section {
   padding: 1.25rem;
-  border: 1px solid #d9e2ec;
-  border-radius: 0.75rem;
-  background: #fff;
 }
 
 .hub-sidebar h2 {

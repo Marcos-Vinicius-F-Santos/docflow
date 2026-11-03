@@ -7,9 +7,25 @@ O projeto demonstra uma arquitetura organizada por domínio, persistência de me
 em PostgreSQL, migrações com Flyway, máquina de estados explícita e fronteiras para
 armazenamento binário assíncrono.
 
-> **Status:** backend operacional e frontend Angular validados localmente. O fluxo local
-> com PostgreSQL, MinIO e RabbitMQ é reproduzível pelo Docker Compose; deploy externo
-> continua fora do escopo.
+> **Status:** backend e frontend têm validações locais registradas. A validação completa
+> do backend aguarda um daemon Docker acessível para os testes Testcontainers; não há
+> resultado de CI nem publicação externa nesta execução. O fluxo local com PostgreSQL,
+> MinIO e RabbitMQ é reproduzível pelo Docker Compose; deploy externo continua fora do
+> escopo.
+
+## Status de validação
+
+Os resultados abaixo são separados por origem para não confundir execução local com CI
+ou publicação:
+
+- **Local — 2026-11-03:** frontend instalado, lintado, testado (110 testes) e compilado;
+  backend unitário validado (211 testes). O relatório está em
+  [`specs/05-verificacao/elevacao-operacional-docflow/fase-0/baseline.md`](specs/05-verificacao/elevacao-operacional-docflow/fase-0/baseline.md).
+- **Local — 2026-11-03:** a suíte Maven completa passou com 250 testes, 0 falhas e 0
+  erros, usando PostgreSQL, RabbitMQ e MinIO via Testcontainers.
+- **CI:** não há execução de CI declarada neste baseline.
+- **Publicação externa:** nenhum deploy, imagem publicada ou ambiente externo foi
+  alterado.
 
 ## Visão geral
 
