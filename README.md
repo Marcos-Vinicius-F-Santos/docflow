@@ -1,5 +1,7 @@
 # DocFlow
 
+[![CI](https://github.com/Marcos-Vinicius-F-Santos/docflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Marcos-Vinicius-F-Santos/docflow/actions/workflows/ci.yml)
+
 Backend REST para registro e acompanhamento de documentos, desenvolvido como projeto
 de portfólio de Software Engineering.
 
@@ -7,25 +9,32 @@ O projeto demonstra uma arquitetura organizada por domínio, persistência de me
 em PostgreSQL, migrações com Flyway, máquina de estados explícita e fronteiras para
 armazenamento binário assíncrono.
 
-> **Status:** backend e frontend têm validações locais registradas. A validação completa
-> do backend aguarda um daemon Docker acessível para os testes Testcontainers; não há
-> resultado de CI nem publicação externa nesta execução. O fluxo local com PostgreSQL,
-> MinIO e RabbitMQ é reproduzível pelo Docker Compose; deploy externo continua fora do
-> escopo.
+> **Status:** a Fase 1 tem CI, build/scan da imagem e smoke test implementados. As
+> validações locais do backend e frontend estão verdes; CI no GitHub, publicação no
+> GHCR e deploy remoto ainda aguardam execução no GitHub e preparação de um cluster
+> acessível pelo workflow. O staging local Kubernetes via `kind` já está validado.
 
 ## Status de validação
 
 Os resultados abaixo são separados por origem para não confundir execução local com CI
 ou publicação:
 
-- **Local — 2026-11-03:** frontend instalado, lintado, testado (110 testes) e compilado;
-  backend unitário validado (211 testes). O relatório está em
-  [`specs/05-verificacao/elevacao-operacional-docflow/fase-0/baseline.md`](specs/05-verificacao/elevacao-operacional-docflow/fase-0/baseline.md).
-- **Local — 2026-11-03:** a suíte Maven completa passou com 250 testes, 0 falhas e 0
-  erros, usando PostgreSQL, RabbitMQ e MinIO via Testcontainers.
-- **CI:** não há execução de CI declarada neste baseline.
-- **Publicação externa:** nenhum deploy, imagem publicada ou ambiente externo foi
-  alterado.
+- **Local — 2026-11-04:** frontend instalado, lintado, testado (110 testes) e compilado;
+  backend validado pela suíte Maven completa (250 testes, 0 falhas e 0 erros), usando
+  PostgreSQL, RabbitMQ e MinIO via Testcontainers.
+- **Local — 2026-11-04:** imagem do backend construída com usuário não-root e health
+  check; Trivy reportou 0 vulnerabilidades HIGH/CRITICAL no sistema operacional da
+  imagem e nos manifests atualizados.
+- **Local — 2026-11-04:** smoke test passou contra o backend e os serviços Docker,
+  cobrindo health, upload, processamento RabbitMQ, storage, download e exclusão.
+- **Local — 2026-11-04:** cluster Kubernetes `kind-docflow-staging` criado; manifests,
+  bootstrap e backend validados com smoke test via `kubectl port-forward`.
+- **CI:** workflow implementado, mas ainda sem execução registrada no GitHub nesta fase.
+- **Publicação externa:** nenhum deploy ou imagem GHCR foi publicado; o cluster remoto
+  para o workflow ainda precisa ser preparado.
+
+O workflow, o contrato do smoke test e o estado do deploy de staging estão documentados
+em [`docs/ci-cd-staging.md`](docs/ci-cd-staging.md).
 
 ## Visão geral
 

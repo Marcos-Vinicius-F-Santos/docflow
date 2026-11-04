@@ -1,0 +1,8 @@
+.git
+.vscode
+target
+*.pid
+.env
+.env.*
+!.env.example
+src/test

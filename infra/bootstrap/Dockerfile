@@ -7,6 +7,7 @@ RUN apk add --no-cache curl postgresql-client
 COPY --from=minio-client /usr/bin/mc /usr/local/bin/mc
 COPY app-user-policy.json /usr/local/share/docflow/app-user-policy.json
 COPY bootstrap.sh /usr/local/bin/docflow-bootstrap
-RUN chmod 0755 /usr/local/bin/docflow-bootstrap
+RUN sed -i 's/\r$//' /usr/local/bin/docflow-bootstrap \
+    && chmod 0755 /usr/local/bin/docflow-bootstrap
 
 ENTRYPOINT ["/usr/local/bin/docflow-bootstrap"]
