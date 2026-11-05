@@ -12,6 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
+    long countByStatus(DocumentStatus status);
+
+    @Query("select count(d) from Document d where d.status = com.dockflow.dockflow.document.DocumentStatus.PROCESSING and d.reconciliationNextAttemptAt is not null")
+    long countResultUnknown();
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from Document d where d.id = :documentId")
     Optional<Document> findByIdForUpdate(@Param("documentId") UUID documentId);

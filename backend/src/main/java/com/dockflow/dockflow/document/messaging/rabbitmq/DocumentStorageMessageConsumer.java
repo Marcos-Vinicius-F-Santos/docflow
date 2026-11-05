@@ -13,6 +13,9 @@ import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingRemover;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
+import com.dockflow.dockflow.document.observability.DocumentMetrics;
+import com.dockflow.dockflow.document.observability.CorrelationIdContext;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,7 @@ public class DocumentStorageMessageConsumer {
     private final Clock clock;
     private final Optional<ApplicationLogRecorder> operationalLogRecorder;
     private final ApplicationLogEventFactory operationalLogEventFactory;
+    private Optional<DocumentMetrics> metrics = Optional.empty();
 
     public DocumentStorageMessageConsumer(
         DocumentRepository documentRepository,
@@ -162,9 +166,15 @@ public class DocumentStorageMessageConsumer {
         this.operationalLogEventFactory = new ApplicationLogEventFactory(clock);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    void configureMetrics(DocumentMetrics documentMetrics) {
+        this.metrics = Optional.of(documentMetrics);
+    }
+
     @Transactional
     public ProcessingResult process(DocumentStorageRequestedMessage message) {
         validate(message);
+        Timer.Sample processingTimer = metrics.map(DocumentMetrics::startProcessingTimer).orElse(null);
         UUID documentId = message.documentId();
         record(ApplicationLogLevel.INFO, "document.processing.started", "Document processing started", documentId, Map.of());
         log.atInfo().addKeyValue("documentId", documentId).log("document storage consumption started");
@@ -177,13 +187,13 @@ public class DocumentStorageMessageConsumer {
                 log.atInfo().addKeyValue("documentId", documentId)
                     .log("document storage duplicate already completed");
                 record(ApplicationLogLevel.INFO, "document.processing.duplicate", "Document was already completed", documentId, Map.of());
-                return ProcessingResult.acknowledged(documentId);
+                return measured(ProcessingResult.acknowledged(documentId), processingTimer, "duplicate");
             }
 
             log.atWarn().addKeyValue("documentId", documentId)
                 .log("document storage claim disputed; retry required");
             record(ApplicationLogLevel.WARN, "document.processing.retry", "Document processing claim disputed", documentId, Map.of());
-            return ProcessingResult.retryKeepingProcessing(documentId);
+            return measured(ProcessingResult.retryKeepingProcessing(documentId), processingTimer, "claim_disputed");
         }
 
         Document document = documentRepository.findById(documentId)
@@ -202,7 +212,7 @@ public class DocumentStorageMessageConsumer {
                 log.atInfo().addKeyValue("documentId", documentId)
                     .log("document storage duplicate final object already exists");
                 record(ApplicationLogLevel.INFO, "document.processing.completed", "Document storage already existed", documentId, Map.of());
-                return ProcessingResult.acknowledged(documentId);
+                return measured(ProcessingResult.acknowledged(documentId), processingTimer, "already_exists");
             }
 
             try (DocumentStagingReader.StagedContent staged = stagingReader.open(message.contentReference())) {
@@ -212,6 +222,7 @@ public class DocumentStorageMessageConsumer {
                     staged.sizeBytes(),
                     staged.contentType()
                 );
+                metrics.ifPresent(value -> value.storage("final_write", "success"));
                 stagingRemover.delete(message.contentReference());
                 document.markCompleted(message.objectKey());
                 documentRepository.save(document);
@@ -223,7 +234,7 @@ public class DocumentStorageMessageConsumer {
             log.atInfo().addKeyValue("documentId", documentId)
                 .log("document storage consumption succeeded");
             record(ApplicationLogLevel.INFO, "document.processing.completed", "Document storage completed", documentId, Map.of());
-            return ProcessingResult.acknowledged(documentId);
+            return measured(ProcessingResult.acknowledged(documentId), processingTimer, "completed");
         } catch (DocumentStorageMessageValidationException exception) {
             throw exception;
         } catch (DocumentStorageException exception) {
@@ -238,17 +249,28 @@ public class DocumentStorageMessageConsumer {
             );
             if (!exception.getFailureType().isRetryable()) {
                 markFailed(document);
-                return ProcessingResult.deadLetter(documentId);
+                return measured(ProcessingResult.deadLetter(documentId), processingTimer, "dead_letter");
             }
+            metrics.ifPresent(value -> value.storage("final_write", exception.getFailureType().name().toLowerCase()));
             return exception.getFailureType() == DocumentStorageException.FailureType.RESULT_UNKNOWN
-                ? ProcessingResult.retryKeepingProcessing(documentId)
-                : ProcessingResult.retry(documentId);
+                ? measured(ProcessingResult.retryKeepingProcessing(documentId), processingTimer, "result_unknown")
+                : measured(ProcessingResult.retry(documentId), processingTimer, "retry");
         } catch (IOException exception) {
             log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
                 .log("staged content could not be read");
             record(ApplicationLogLevel.WARN, "document.processing.retry", "Staged content could not be read", documentId, Map.of());
-            return ProcessingResult.retryKeepingProcessing(documentId);
+            return measured(ProcessingResult.retryKeepingProcessing(documentId), processingTimer, "staging_read_retry");
         }
+    }
+
+    private ProcessingResult measured(ProcessingResult result, Timer.Sample timer, String outcome) {
+        metrics.ifPresent(value -> {
+            value.processing(outcome);
+            if (timer != null) {
+                value.stopProcessingTimer(timer, outcome);
+            }
+        });
+        return result;
     }
 
     /** Persists a permanent processing failure before the message is dead-lettered. */
@@ -386,7 +408,7 @@ public class DocumentStorageMessageConsumer {
             "document-storage-consumer",
             operation,
             message,
-            new ApplicationLogContext(null, documentId),
+            new ApplicationLogContext(CorrelationIdContext.currentUuid(), documentId),
             details
         )));
     }

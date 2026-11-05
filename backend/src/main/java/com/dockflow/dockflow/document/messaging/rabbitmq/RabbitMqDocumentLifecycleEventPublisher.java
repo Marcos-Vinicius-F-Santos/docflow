@@ -2,6 +2,7 @@ package com.dockflow.dockflow.document.messaging.rabbitmq;
 
 import com.dockflow.dockflow.document.application.DocumentLifecycleEventPublisher;
 import com.dockflow.dockflow.document.application.DocumentPublicationException;
+import com.dockflow.dockflow.document.observability.CorrelationIdContext;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.core.MessageProperties;
@@ -115,6 +116,10 @@ public final class RabbitMqDocumentLifecycleEventPublisher implements DocumentLi
             MessageProperties properties = message.getMessageProperties();
             properties.setDeliveryMode(org.springframework.amqp.core.MessageDeliveryMode.PERSISTENT);
             properties.setContentType(DocumentNotificationRabbitTopology.JSON_CONTENT_TYPE);
+            String correlationId = CorrelationIdContext.current();
+            if (correlationId != null) {
+                properties.setHeader(CorrelationIdContext.MESSAGE_HEADER, correlationId);
+            }
             return message;
         };
     }

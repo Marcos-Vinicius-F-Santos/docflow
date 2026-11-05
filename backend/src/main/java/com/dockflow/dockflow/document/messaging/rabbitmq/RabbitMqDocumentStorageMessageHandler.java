@@ -13,10 +13,14 @@ import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import com.dockflow.dockflow.document.observability.CorrelationIdContext;
+import com.dockflow.dockflow.document.observability.DocumentMetrics;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /** RabbitMQ boundary for acknowledgment, retry routing and dead-lettering. */
@@ -29,6 +33,7 @@ public class RabbitMqDocumentStorageMessageHandler {
     private final RabbitTemplate rabbitTemplate;
     private final MessageConverter messageConverter;
     private final Duration confirmationTimeout;
+    private Optional<DocumentMetrics> metrics = Optional.empty();
 
     public RabbitMqDocumentStorageMessageHandler(
         DocumentStorageMessageConsumer consumer,
@@ -49,18 +54,28 @@ public class RabbitMqDocumentStorageMessageHandler {
         this.confirmationTimeout = confirmationTimeout;
     }
 
+    @Autowired
+    void configureMetrics(DocumentMetrics documentMetrics) {
+        this.metrics = Optional.of(documentMetrics);
+    }
+
     public void handle(DocumentStorageRequestedMessage message, Message delivery, Channel channel) throws IOException {
         long deliveryTag = delivery.getMessageProperties().getDeliveryTag();
         UUID documentId = message == null ? null : message.documentId();
+        Object correlationHeader = delivery.getMessageProperties().getHeaders()
+            .get(CorrelationIdContext.MESSAGE_HEADER);
+        CorrelationIdContext.set(correlationHeader instanceof String value ? value : null);
 
         try {
             ProcessingResult result = consumer.process(message);
             if (result.disposition() == Disposition.ACKNOWLEDGE) {
                 channel.basicAck(deliveryTag, false);
+                metrics.ifPresent(value -> value.rabbit("document_storage", "ack"));
                 return;
             }
             if (result.disposition() == Disposition.DEAD_LETTER) {
                 channel.basicReject(deliveryTag, false);
+                metrics.ifPresent(value -> value.rabbit("document_storage", "dead_letter"));
                 return;
             }
 
@@ -69,6 +84,9 @@ public class RabbitMqDocumentStorageMessageHandler {
             log.atWarn().addKeyValue("documentId", documentId).setCause(exception)
                 .log("invalid document storage message sent to dead letter");
             channel.basicReject(deliveryTag, false);
+            metrics.ifPresent(value -> value.rabbit("document_storage", "dead_letter"));
+        } finally {
+            CorrelationIdContext.clear();
         }
     }
 
@@ -85,6 +103,8 @@ public class RabbitMqDocumentStorageMessageHandler {
                 consumer.markFailedAfterPermanentFailure(result.documentId());
             }
             channel.basicReject(deliveryTag, false);
+            metrics.ifPresent(value -> value.retry("exhausted"));
+            metrics.ifPresent(value -> value.rabbit("document_storage", "dead_letter"));
             log.atWarn().addKeyValue("documentId", message.documentId())
                 .log("document storage retries exhausted; sent to dead letter");
             return;
@@ -102,14 +122,18 @@ public class RabbitMqDocumentStorageMessageHandler {
             );
             if (confirm == null || !confirm.isAck()) {
                 channel.basicNack(deliveryTag, false, true);
+                metrics.ifPresent(value -> value.rabbit("document_storage", "requeued"));
                 return;
             }
             channel.basicAck(deliveryTag, false);
+            metrics.ifPresent(value -> value.retry("scheduled"));
+            metrics.ifPresent(value -> value.rabbit("document_storage", "retry"));
             log.atInfo().addKeyValue("documentId", message.documentId())
                 .addKeyValue("retryCount", retryCount + 1)
                 .log("document storage retry scheduled");
         } catch (Exception exception) {
             channel.basicNack(deliveryTag, false, true);
+            metrics.ifPresent(value -> value.rabbit("document_storage", "requeued"));
             log.atWarn().addKeyValue("documentId", message.documentId()).setCause(exception)
                 .log("document storage retry publication failed; delivery requeued");
         }
@@ -121,6 +145,7 @@ public class RabbitMqDocumentStorageMessageHandler {
             properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
             properties.setContentType("application/json");
             properties.setHeader(RETRY_COUNT_HEADER, retryCount);
+            properties.setHeader(CorrelationIdContext.MESSAGE_HEADER, CorrelationIdContext.current());
             return message;
         };
     }

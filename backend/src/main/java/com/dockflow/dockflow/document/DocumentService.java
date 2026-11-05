@@ -22,6 +22,8 @@ import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
 import com.dockflow.dockflow.document.storage.DocumentStorage;
 import com.dockflow.dockflow.document.storage.DocumentStorageException;
 import com.dockflow.dockflow.document.messaging.rabbitmq.DocumentLifecycleEventMapper;
+import com.dockflow.dockflow.document.observability.CorrelationIdContext;
+import com.dockflow.dockflow.document.observability.DocumentMetrics;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -49,6 +51,7 @@ public class DocumentService {
     private final DocumentLifecycleEventMapper lifecycleEventMapper;
     private Optional<ApplicationLogRecorder> operationalLogRecorder = Optional.empty();
     private ApplicationLogEventFactory operationalLogEventFactory = new ApplicationLogEventFactory();
+    private Optional<DocumentMetrics> metrics = Optional.empty();
 
     public DocumentService(DocumentRepository documentRepository) {
         this.documentRepository = documentRepository;
@@ -151,6 +154,11 @@ public class DocumentService {
         this.operationalLogEventFactory = eventFactory;
     }
 
+    @Autowired
+    void configureMetrics(DocumentMetrics documentMetrics) {
+        this.metrics = Optional.of(documentMetrics);
+    }
+
     @Transactional
     public Document registerDocument(
         String originalFilename,
@@ -187,11 +195,19 @@ public class DocumentService {
 
         DocumentContent validatedContent = contentValidator.validate(content);
         UUID documentId = UUID.randomUUID();
-        DocumentStaging.StagedObject staged = staging.stage(
-            documentId,
-            validatedContent.content(),
-            validatedContent.contentType()
-        );
+        DocumentStaging.StagedObject staged;
+        try {
+            staged = staging.stage(
+                documentId,
+                validatedContent.content(),
+                validatedContent.contentType()
+            );
+            metrics.ifPresent(value -> value.storage("staging_upload", "success"));
+        } catch (DocumentStorageException exception) {
+            metrics.ifPresent(value -> value.storage("staging_upload", exception.getFailureType().name().toLowerCase()));
+            metrics.ifPresent(value -> value.upload("failed"));
+            throw exception;
+        }
 
         Document document = new Document(
             documentId,
@@ -217,6 +233,8 @@ public class DocumentService {
             staged.sizeBytes(),
             staged.contentType()
         ));
+
+        metrics.ifPresent(value -> value.upload("accepted"));
 
         return saved;
     }
@@ -278,16 +296,22 @@ public class DocumentService {
         String objectKey = document.getObjectKey() == null || document.getObjectKey().isBlank()
             ? "documents/" + id
             : document.getObjectKey();
-        requestPublisher
-            .orElseThrow(() -> new IllegalStateException("Document storage request publisher is not configured"))
-            .publish(new DocumentStorageRequestPublisher.DocumentStorageRequested(
-                1,
-                id,
-                objectKey,
-                contentReference,
-                document.getSizeBytes(),
-                document.getContentType()
-            ));
+        try {
+            requestPublisher
+                .orElseThrow(() -> new IllegalStateException("Document storage request publisher is not configured"))
+                .publish(new DocumentStorageRequestPublisher.DocumentStorageRequested(
+                    1,
+                    id,
+                    objectKey,
+                    contentReference,
+                    document.getSizeBytes(),
+                    document.getContentType()
+                ));
+            metrics.ifPresent(value -> value.retry("accepted"));
+        } catch (RuntimeException exception) {
+            metrics.ifPresent(value -> value.retry("failed"));
+            throw exception;
+        }
 
         return document;
     }
@@ -320,6 +344,7 @@ public class DocumentService {
             DocumentStorage.StoredContent stored = documentStorage
                 .orElseThrow(() -> new IllegalStateException("Document storage is not configured"))
                 .open(objectKey);
+            metrics.ifPresent(value -> value.storage("final_read", "success"));
             return new DocumentDownload(
                 stored.content(),
                 document.getSizeBytes(),
@@ -327,6 +352,7 @@ public class DocumentService {
                 document.getOriginalFilename()
             );
         } catch (DocumentStorageException exception) {
+            metrics.ifPresent(value -> value.storage("final_read", exception.getFailureType().name().toLowerCase()));
             if (exception.getFailureType() == DocumentStorageException.FailureType.NOT_FOUND) {
                 throw new DocumentContentNotFoundException(id);
             }
@@ -354,6 +380,7 @@ public class DocumentService {
                 .orElseThrow(() -> new IllegalStateException("Document staging remover is not configured"))
                 .delete("staging/" + id);
         } catch (DocumentStorageException exception) {
+            metrics.ifPresent(value -> value.storage("final_delete", exception.getFailureType().name().toLowerCase()));
             record(
                 ApplicationLogLevel.ERROR,
                 "document.delete",
@@ -398,7 +425,7 @@ public class DocumentService {
             "document-service",
             operation,
             message,
-            new ApplicationLogContext(null, documentId),
+            new ApplicationLogContext(CorrelationIdContext.currentUuid(), documentId),
             details
         )));
     }

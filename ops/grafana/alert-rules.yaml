@@ -1,0 +1,90 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: docflow-operacao
+    folder: DocFlow
+    interval: 1m
+    rules:
+      - uid: docflow-dlq
+        title: DocFlow DLQ has messages
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              expr: sum(rate(docflow_rabbit_messages_total{outcome="dead_letter"}[5m]))
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              expr: A > 0
+              refId: C
+        for: 5m
+        labels: { severity: warning, service: docflow }
+        annotations:
+          summary: "DocFlow possui mensagens em dead-letter"
+          runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
+      - uid: docflow-processing-stuck
+        title: DocFlow processing is stuck
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            model: { expr: docflow_documents_result_unknown, refId: A }
+          - refId: C
+            relativeTimeRange: { from: 600, to: 0 }
+            model: { expr: A >= 1, refId: C }
+        for: 5m
+        labels: { severity: warning, service: docflow }
+        annotations:
+          summary: "Documento aguardando reconciliação há mais de 10 minutos"
+          runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
+      - uid: docflow-http-p95
+        title: DocFlow HTTP P95 is high
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            model:
+              expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="dockflow"}[5m])))
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 600, to: 0 }
+            model: { expr: A > 2, refId: C }
+        for: 10m
+        labels: { severity: warning, service: docflow }
+        annotations:
+          summary: "P95 HTTP acima de 2 segundos"
+          runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
+      - uid: docflow-storage-failure
+        title: DocFlow storage failure
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              expr: sum(rate(docflow_storage_operations_total{outcome=~"unavailable|result_unknown"}[5m]))
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            model: { expr: A > 0, refId: C }
+        for: 5m
+        labels: { severity: critical, service: docflow }
+        annotations:
+          summary: "Falha de storage detectada"
+          runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
+      - uid: docflow-health
+        title: DocFlow health is degraded
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 120, to: 0 }
+            model: { expr: up{application="dockflow"}, refId: A }
+          - refId: C
+            relativeTimeRange: { from: 120, to: 0 }
+            model: { expr: A < 1, refId: C }
+        for: 2m
+        labels: { severity: critical, service: docflow }
+        annotations:
+          summary: "Prometheus não consegue observar o DocFlow"
+          runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"

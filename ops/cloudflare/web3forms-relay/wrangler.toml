@@ -1,0 +1,6 @@
+name = "docflow-grafana-web3forms-relay"
+main = "src/index.js"
+compatibility_date = "2026-11-05"
+
+[vars]
+WEB3FORMS_API_URL = "https://api.web3forms.com/submit"

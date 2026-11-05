@@ -1,15 +1,15 @@
 # Execução — Fase 3: observabilidade real
 
 Ambiente-alvo: staging cloud ou ambiente equivalente aprovado.  
-Status: bloqueado até métricas e limites de alerta serem definidos.
+Status: implementação local concluída; configuração e exercício externo pendentes.
 
 ## Pré-condições
 
-- [ ] Ambiente da Fase 2 disponível.
-- [ ] Endpoint de métricas protegido conforme decisão de segurança.
-- [ ] Grafana/Prometheus disponíveis ou alternativa aprovada.
-- [ ] Limiares e canais de alerta registrados.
-- [ ] Runbook inicial revisado.
+- [x] Ambiente da Fase 2 disponível.
+- [x] Endpoint de métricas protegido conforme decisão de segurança.
+- [ ] Grafana/Prometheus configurados no ambiente externo.
+- [x] Limiares e canais de alerta registrados.
+- [x] Runbook inicial revisado.
 
 ## Passos
 

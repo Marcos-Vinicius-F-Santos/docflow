@@ -33,6 +33,12 @@ services:
         sync: false
       - key: DOCFLOW_NOTIFICATION_WEBSOCKET_ALLOWED_ORIGINS
         sync: false
+      - key: DOCFLOW_PROMETHEUS_ENABLED
+        sync: false
+      - key: DOCFLOW_PROMETHEUS_USERNAME
+        sync: false
+      - key: DOCFLOW_PROMETHEUS_PASSWORD
+        sync: false
 
   - type: web
     name: docflow-frontend
