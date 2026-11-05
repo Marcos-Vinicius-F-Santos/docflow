@@ -5,6 +5,12 @@
       Hub
     </a>
     <a routerLink="/logs" routerLinkActive="is-active">Logs operacionais</a>
+    @if (session()) {
+      <span class="app-user">{{ session()?.user?.name || session()?.user?.email }}</span>
+      <button class="app-sign-out" type="button" (click)="signOut()">Sair</button>
+    } @else if (auth.isConfigured()) {
+      <a routerLink="/auth" routerLinkActive="is-active">Entrar</a>
+    }
   </nav>
 </header>
 

@@ -111,6 +111,11 @@ export class DocumentNotificationService {
   }
 
   private websocketUrl(): string {
+    if (environment.apiBaseUrl) {
+      const websocketBaseUrl = environment.apiBaseUrl.replace(/^http/, 'ws');
+      return `${websocketBaseUrl}${environment.notificationWebSocketPath}`;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.host}${environment.notificationWebSocketPath}`;
   }

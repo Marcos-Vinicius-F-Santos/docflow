@@ -43,6 +43,29 @@
   color: #0b69a3;
 }
 
+.app-user {
+  align-self: center;
+  color: #627d98;
+  font-size: 0.85rem;
+}
+
+.app-sign-out {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #486581;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.app-sign-out:hover,
+.app-sign-out:focus-visible {
+  border-color: #0b69a3;
+  color: #0b69a3;
+}
+
 .app-navigation a:focus-visible,
 .app-brand:focus-visible {
   outline: 3px solid #fdb022;

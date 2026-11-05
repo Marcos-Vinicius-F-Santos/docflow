@@ -1,0 +1,57 @@
+<main class="auth-page">
+  <section class="auth-card" aria-labelledby="auth-title">
+    <p class="eyebrow">Neon Managed Auth</p>
+    <h1 id="auth-title">{{ mode === 'sign-in' ? 'Entrar no DocFlow' : 'Criar sua conta' }}</h1>
+    <p class="auth-description">
+      Acesse o fluxo de documentos com uma sessão segura vinculada ao ambiente Neon.
+    </p>
+
+    @if (!isConfigured) {
+      <p class="auth-notice" role="status">
+        O Neon Auth ainda não está configurado neste ambiente. Defina a URL pública de Auth para habilitar o acesso.
+      </p>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        @if (mode === 'sign-up') {
+          <label>
+            Nome
+            <input formControlName="name" autocomplete="name" />
+          </label>
+        }
+
+        <label>
+          E-mail
+          <input formControlName="email" type="email" autocomplete="email" />
+          @if (form.controls.email.touched && form.controls.email.invalid) {
+            <small>Informe um e-mail válido.</small>
+          }
+        </label>
+
+        <label>
+          Senha
+          <input formControlName="password" type="password" autocomplete="current-password" />
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <small>Use pelo menos 8 caracteres.</small>
+          }
+        </label>
+
+        @if (errorMessage) {
+          <p class="auth-error" role="alert">{{ errorMessage }}</p>
+        }
+        @if (successMessage) {
+          <p class="auth-success" role="status">{{ successMessage }}</p>
+        }
+
+        <button type="submit" [disabled]="submitting">
+          {{ submitting ? 'Aguarde...' : mode === 'sign-in' ? 'Entrar' : 'Criar conta' }}
+        </button>
+      </form>
+
+      <button class="mode-button" type="button" (click)="setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')">
+        {{ mode === 'sign-in' ? 'Ainda não tenho uma conta' : 'Já tenho uma conta' }}
+      </button>
+    }
+
+    <a class="back-link" routerLink="/">Voltar para o início</a>
+  </section>
+</main>

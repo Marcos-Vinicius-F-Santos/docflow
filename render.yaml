@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: docflow-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_ADDRESSES
+        sync: false
+      - key: NEON_AUTH_JWKS_URL
+        sync: false
+      - key: NEON_AUTH_BASE_URL
+        sync: false
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_STAGING_BUCKET
+        value: docflow-staging
+      - key: MINIO_BUCKET
+        value: docflow-documents
+      - key: DOCFLOW_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: DOCFLOW_NOTIFICATION_WEBSOCKET_ALLOWED_ORIGINS
+        sync: false
+
+  - type: static
+    name: docflow-frontend
+    buildCommand: npm ci --prefix frontend && node frontend/scripts/build-render-frontend.mjs && npm run build --prefix frontend
+    staticPublishPath: frontend/dist/docflow-frontend/browser
+    envVars:
+      - key: DOCFLOW_API_BASE_URL
+        sync: false
+      - key: NEON_AUTH_BASE_URL
+        sync: false
