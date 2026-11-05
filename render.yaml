@@ -34,8 +34,9 @@ services:
       - key: DOCFLOW_NOTIFICATION_WEBSOCKET_ALLOWED_ORIGINS
         sync: false
 
-  - type: static
+  - type: web
     name: docflow-frontend
+    runtime: static
     buildCommand: npm ci --prefix frontend && node frontend/scripts/build-render-frontend.mjs && npm run build --prefix frontend
     staticPublishPath: frontend/dist/docflow-frontend/browser
     envVars:
