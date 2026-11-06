@@ -1,6 +1,6 @@
 # Checklist de Convergência — Fase 3: observabilidade real
 
-Status: implementação local concluída; validação externa pendente
+Status: correção operacional aplicada; validação do CI pendente
 Spec: `specs/03-features/elevacao-operacional-docflow/spec.md`  
 Plano: `specs/04-plano/elevacao-operacional-docflow/fase-3/tarefas.md`
 
@@ -25,6 +25,13 @@ Plano: `specs/04-plano/elevacao-operacional-docflow/fase-3/tarefas.md`
 | crescimento de `PROCESSING` | [ ] | alerta |
 | storage/health/HTTP | [ ] | alerta |
 | runbook | [x] | `ops/runbooks/phase-3-observability.md` |
+
+## 2.1 CI e storage de teste
+
+- [x] Testes obrigatórios não dependem mais da imagem pública antiga do MinIO.
+- [x] S3Mock `adobe/s3mock:5.2.0` é usado pelo Testcontainers nos testes S3.
+- [ ] Execução do GitHub Actions confirma a suíte Backend/Testcontainers com S3Mock.
+- [ ] Exercício manual com MinIO real, incluindo rejeição de credenciais, quando necessário.
 
 ## 3. Gate
 

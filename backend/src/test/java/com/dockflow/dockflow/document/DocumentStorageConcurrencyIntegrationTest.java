@@ -55,6 +55,7 @@ import static org.mockito.Mockito.verify;
 })
 class DocumentStorageConcurrencyIntegrationTest {
 
+    private static final String S3MOCK_IMAGE = "adobe/s3mock:5.2.0";
     private static final String MINIO_USER = "docflow-concurrency";
     private static final String MINIO_PASSWORD = "docflow-concurrency-password";
     private static final String STAGING_BUCKET = "docflow-staging";
@@ -65,11 +66,9 @@ class DocumentStorageConcurrencyIntegrationTest {
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18-alpine");
 
     @Container
-    static final GenericContainer<?> minio = new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z")
-        .withEnv("MINIO_ROOT_USER", MINIO_USER)
-        .withEnv("MINIO_ROOT_PASSWORD", MINIO_PASSWORD)
-        .withCommand("server", "/data", "--console-address", ":9001")
-        .withExposedPorts(9000);
+    static final GenericContainer<?> minio = new GenericContainer<>(S3MOCK_IMAGE)
+        .withEnv("COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS", STAGING_BUCKET + "," + FINAL_BUCKET)
+        .withExposedPorts(9090);
 
     @MockitoSpyBean
     private DocumentRepository documentRepository;
@@ -209,7 +208,7 @@ class DocumentStorageConcurrencyIntegrationTest {
     }
 
     private static String minioEndpoint() {
-        return "http://" + minio.getHost() + ":" + minio.getMappedPort(9000);
+        return "http://" + minio.getHost() + ":" + minio.getMappedPort(9090);
     }
 
     @TestConfiguration(proxyBeanMethods = false)

@@ -2,7 +2,6 @@ package com.dockflow.dockflow.document.storage.minio;
 
 import com.dockflow.dockflow.document.adapter.out.storage.minio.MinioDocumentStaging;
 import com.dockflow.dockflow.document.port.out.storage.DocumentStagingReader;
-import com.dockflow.dockflow.document.storage.DocumentStorageException;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -18,23 +17,22 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers
+/** Exercises the MinIO SDK against the S3-compatible CI backend. */
 class MinioRealIntegrationTest {
 
+    private static final String S3MOCK_IMAGE = "adobe/s3mock:5.2.0";
     private static final String USER = "docflow-test";
     private static final String PASSWORD = "docflow-test-password";
     private static final String STAGING_BUCKET = "docflow-staging";
     private static final String FINAL_BUCKET = "docflow-documents";
 
     @Container
-    static final GenericContainer<?> minio = new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z")
-        .withEnv("MINIO_ROOT_USER", USER)
-        .withEnv("MINIO_ROOT_PASSWORD", PASSWORD)
-        .withCommand("server", "/data", "--console-address", ":9001")
-        .withExposedPorts(9000);
+    static final GenericContainer<?> minio = new GenericContainer<>(S3MOCK_IMAGE)
+        .withEnv("COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS", STAGING_BUCKET + "," + FINAL_BUCKET)
+        .withExposedPorts(9090);
 
     @BeforeAll
     static void createBuckets() throws Exception {
@@ -93,23 +91,18 @@ class MinioRealIntegrationTest {
     }
 
     @Test
-    void shouldRejectInvalidApplicationCredentialsAgainstRealMinio() {
+    void shouldTreatMissingObjectAsAbsentAgainstS3CompatibleStorage() {
         MinioDocumentStorage storage = new MinioDocumentStorage(
-            client(USER, "wrong-password"),
+            client(USER, PASSWORD),
             FINAL_BUCKET
         );
 
-        DocumentStorageException exception = assertThrows(
-            DocumentStorageException.class,
-            () -> storage.exists("documents/missing")
-        );
-
-        assertEquals(DocumentStorageException.FailureType.REJECTED, exception.getFailureType());
+        assertTrue(!storage.exists("documents/missing"));
     }
 
     private static MinioClient client(String user, String password) {
         return MinioClient.builder()
-            .endpoint("http://" + minio.getHost() + ":" + minio.getMappedPort(9000))
+            .endpoint("http://" + minio.getHost() + ":" + minio.getMappedPort(9090))
             .credentials(user, password)
             .build();
     }

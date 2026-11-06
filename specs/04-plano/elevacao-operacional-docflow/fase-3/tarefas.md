@@ -13,6 +13,8 @@ Dependência: Fase 2 ou ambiente equivalente aprovado.
 - [x] F3-T005 Instrumentar documentos `PROCESSING`, `RESULT_UNKNOWN`, duração e erros por dependência.
 - [x] F3-T006 Criar dashboard Grafana com painéis de volume, erro, latência, fila e estado.
 - [x] F3-T007 Criar alertas para DLQ, `PROCESSING`, storage, P95, health e HTTP.
+- [x] F3-T010 Substituir a dependência pública instável do MinIO no CI por S3Mock para
+  os testes automatizados S3; manter MinIO como validação manual/opcional.
 - [ ] F3-T008 Provocar alerta controlado e escrever runbook de diagnóstico/recuperação. Runbook criado; exercício externo pendente.
 - [ ] F3-T009 Criar o commit completo da fase com dashboard, configuração, testes e evidências. Commit será criado após as validações locais.
 

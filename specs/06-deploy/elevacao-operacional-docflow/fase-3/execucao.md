@@ -1,7 +1,7 @@
 # Execução — Fase 3: observabilidade real
 
 Ambiente-alvo: staging cloud ou ambiente equivalente aprovado.  
-Status: implementação local concluída; configuração e exercício externo pendentes.
+Status: correção operacional do CI aplicada; validação externa e exercício de alertas pendentes.
 
 ## Pré-condições
 
@@ -10,6 +10,7 @@ Status: implementação local concluída; configuração e exercício externo pe
 - [ ] Grafana/Prometheus configurados no ambiente externo.
 - [x] Limiares e canais de alerta registrados.
 - [x] Runbook inicial revisado.
+- [x] CI atualizado para usar S3Mock nos testes automatizados de storage.
 
 ## Passos
 
@@ -20,6 +21,12 @@ Status: implementação local concluída; configuração e exercício externo pe
 5. Confirmar alerta, correlation ID, logs sanitizados e passos do runbook.
 6. Recuperar a dependência e confirmar retorno ao estado normal.
 7. Exportar dashboard e salvar logs/evidências sem segredos.
+
+### Validação operacional do CI
+
+1. Acompanhar a execução do workflow após a troca da imagem.
+2. Confirmar que Backend/Testcontainers conclui sem retry contra o Quay.
+3. Preservar o teste MinIO real como validação manual/opcional, fora do gate obrigatório.
 
 ## Rollback
 
