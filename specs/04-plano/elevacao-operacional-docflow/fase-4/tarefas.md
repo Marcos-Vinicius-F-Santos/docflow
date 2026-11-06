@@ -6,7 +6,7 @@ Dependência: decisões de identidade, tenant e autorização aprovadas.
 
 ## Implementação
 
-- [ ] F4-T001 Aprovar provedor JWT/OAuth2, modelo de usuário/tenant e matriz de permissões.
+- [x] F4-T001 Aprovar provedor JWT/OAuth2, modelo de usuário/tenant e matriz de permissões. ADR-010 aceita; implementação pendente.
 - [ ] F4-T002 Mapear endpoints, WebSocket, logs e operações que exigem autenticação/autorização.
 - [ ] F4-T003 Implementar Spring Security e validação de tokens com configuração externa.
 - [ ] F4-T004 Criar migration e modelo de `owner_id`/tenant equivalente com estratégia para dados existentes.

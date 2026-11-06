@@ -1,7 +1,8 @@
 # Execução — Fase 4: segurança e multi-tenant
 
 Ambiente-alvo: staging isolado, nunca produção sem aprovação explícita.  
-Status: bloqueado até identidade, tenant, permissões e migration serem aprovados.
+Status: implementação pausada; identidade, tenant e permissões aprovados no ADR-010.
+Migration, secrets, backup e execução continuam pendentes por solicitação.
 
 ## Pré-condições
 

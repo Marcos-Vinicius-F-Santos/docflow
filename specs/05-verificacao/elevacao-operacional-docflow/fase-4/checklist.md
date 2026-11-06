@@ -1,14 +1,14 @@
 # Checklist de Convergência — Fase 4: segurança e multi-tenant
 
-Status: não executado  
+Status: decisões aprovadas; implementação não iniciada  
 Spec: `specs/03-features/elevacao-operacional-docflow/spec.md`  
 Plano: `specs/04-plano/elevacao-operacional-docflow/fase-4/tarefas.md`
 
 ## 1. Decisões e schema
 
-- [ ] Provedor de identidade e claims aprovados.
-- [ ] Matriz `USER`/`OPERATOR`/`ADMIN` aprovada.
-- [ ] Modelo usuário/tenant/owner aprovado.
+- [x] Provedor de identidade e claims aprovados — ADR-010.
+- [x] Matriz `USER`/`OPERATOR`/`ADMIN` aprovada — ADR-010.
+- [x] Modelo usuário/tenant/owner aprovado — ADR-010.
 - [ ] Migration, dados existentes e rollback testados.
 
 ## 2. Segurança funcional
