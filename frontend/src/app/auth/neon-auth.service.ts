@@ -9,6 +9,14 @@ export interface NeonAuthSession {
   };
 }
 
+interface NeonAuthTokenResult {
+  data: { token: string } | null;
+}
+
+interface NeonAuthTokenClient {
+  token(): Promise<NeonAuthTokenResult>;
+}
+
 /** Thin Angular boundary around the Neon Managed Auth client. */
 @Injectable({ providedIn: 'root' })
 export class NeonAuthService {
@@ -36,11 +44,14 @@ export class NeonAuthService {
     return this.requireClient().getSession();
   }
 
-  getAccessToken(): Promise<string | null> {
-    if (!this.authClient) {
-      return Promise.resolve(null);
+  async getAccessToken(): Promise<string | null> {
+    if (!this.client) {
+      return null;
     }
-    return this.authClient.getJWTToken();
+
+    const tokenClient = this.client as typeof this.client & NeonAuthTokenClient;
+    const result = await tokenClient.token();
+    return result.data?.token ?? null;
   }
 
   signOut() {
