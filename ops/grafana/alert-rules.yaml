@@ -34,7 +34,7 @@ groups:
           - refId: C
             relativeTimeRange: { from: 600, to: 0 }
             model: { expr: A >= 1, refId: C }
-        for: 5m
+        for: 10m
         labels: { severity: warning, service: docflow }
         annotations:
           summary: "Documento aguardando reconciliação há mais de 10 minutos"
@@ -69,7 +69,7 @@ groups:
             relativeTimeRange: { from: 300, to: 0 }
             model: { expr: A > 0, refId: C }
         for: 5m
-        labels: { severity: critical, service: docflow }
+        labels: { severity: warning, service: docflow }
         annotations:
           summary: "Falha de storage detectada"
           runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
@@ -79,12 +79,12 @@ groups:
         data:
           - refId: A
             relativeTimeRange: { from: 120, to: 0 }
-            model: { expr: up{application="dockflow"}, refId: A }
+            model: { expr: up{scrape_job="docflow-backend"}, refId: A }
           - refId: C
             relativeTimeRange: { from: 120, to: 0 }
             model: { expr: A < 1, refId: C }
         for: 2m
-        labels: { severity: critical, service: docflow }
+        labels: { severity: critical, component: backend }
         annotations:
           summary: "Prometheus não consegue observar o DocFlow"
           runbook_url: "https://github.com/Marcos-Vinicius-F-Santos/docflow/blob/main/ops/runbooks/phase-3-observability.md"
