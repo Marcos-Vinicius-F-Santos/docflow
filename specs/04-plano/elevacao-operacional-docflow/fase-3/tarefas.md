@@ -15,14 +15,14 @@ Dependência: Fase 2 ou ambiente equivalente aprovado.
 - [x] F3-T007 Criar alertas para DLQ, `PROCESSING`, storage, P95, health e HTTP.
 - [x] F3-T010 Substituir a dependência pública instável do MinIO no CI por S3Mock para
   os testes automatizados S3; manter MinIO como validação manual/opcional.
-- [ ] F3-T008 Provocar alerta controlado e escrever runbook de diagnóstico/recuperação. Runbook criado; exercício externo pendente.
-- [ ] F3-T009 Criar o commit completo da fase com dashboard, configuração, testes e evidências. Commit será criado após as validações locais.
+- [x] F3-T008 Provocar alerta controlado e escrever runbook de diagnóstico/recuperação. Exercício Grafana/Web3Forms concluído; runbook validado.
+- [x] F3-T009 Criar o commit completo da fase com dashboard, configuração, testes e evidências. Evidências registradas nos commits da fase e na run 10.
 
 ## Gate da Fase 3
 
-- [ ] FR-005 atendido em staging externo.
-- [ ] AC-007 e AC-008 atendidos em staging externo.
+- [x] FR-005 atendido em staging externo.
+- [x] AC-007 e AC-008 atendidos em staging externo.
 - [x] Cardinalidade e sanitização revisadas no código e nos artefatos.
-- [x] Dashboard/export, regras e runbook disponíveis; alerta ainda depende da configuração externa.
-- [ ] Marcos aprovou o commit.
+- [x] Dashboard/export, regras, notificação e runbook disponíveis em staging externo.
+- [x] Marcos aprovou o encerramento da fase.
 

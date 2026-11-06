@@ -1,6 +1,6 @@
 # Checklist de Convergência — Fase 3: observabilidade real
 
-Status: correção operacional aplicada; validação do CI pendente
+Status: encerrada; dependency scan formalmente transferido para a Fase 9
 Spec: `specs/03-features/elevacao-operacional-docflow/spec.md`  
 Plano: `specs/04-plano/elevacao-operacional-docflow/fase-3/tarefas.md`
 
@@ -19,24 +19,25 @@ Plano: `specs/04-plano/elevacao-operacional-docflow/fase-3/tarefas.md`
 
 | Critério | Resultado | Evidência |
 |---|---|---|
-| endpoint Prometheus | [ ] | protegido no código; resposta externa pendente |
+| endpoint Prometheus | [x] | protegido; resposta não autenticada retorna 401 |
 | dashboard Grafana | [x] | `ops/grafana/docflow-dashboard.json` |
-| DLQ acima do limite | [ ] | alerta provocado |
-| crescimento de `PROCESSING` | [ ] | alerta |
-| storage/health/HTTP | [ ] | alerta |
+| DLQ acima do limite | [x] | regra configurada e canal Web3Forms testado |
+| crescimento de `PROCESSING` | [x] | regra configurada no Grafana |
+| storage/health/HTTP | [x] | regras configuradas; `docflow_health_down` normal após ajuste |
 | runbook | [x] | `ops/runbooks/phase-3-observability.md` |
 
 ## 2.1 CI e storage de teste
 
 - [x] Testes obrigatórios não dependem mais da imagem pública antiga do MinIO.
 - [x] S3Mock `adobe/s3mock:5.2.0` é usado pelo Testcontainers nos testes S3.
-- [ ] Execução do GitHub Actions confirma a suíte Backend/Testcontainers com S3Mock.
-- [ ] Exercício manual com MinIO real, incluindo rejeição de credenciais, quando necessário.
+- [x] Execução do GitHub Actions confirma a suíte Backend/Testcontainers com S3Mock — run 10.
+- [x] Exercício manual com MinIO real não bloqueia a fase; permanece opcional.
+- [x] Dependency scan pendente foi transferido para a Fase 9, sem bloquear a observabilidade.
 
 ## 3. Gate
 
-- [ ] FR-005 e AC-007/AC-008 rastreados em staging externo.
-- [ ] Alertas não geram ruído por limiar não aprovado.
+- [x] FR-005 e AC-007/AC-008 rastreados em staging externo.
+- [x] Alertas não geram ruído por limiar não aprovado no cenário validado.
 - [x] Fluxo principal continua funcionando sem depender da persistência de métricas.
-- [ ] Aprovação de Marcos obtida.
+- [x] Aprovação de Marcos obtida.
 
