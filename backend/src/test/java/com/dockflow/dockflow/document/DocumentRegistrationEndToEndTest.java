@@ -59,7 +59,7 @@ class DocumentRegistrationEndToEndTest {
     static final RabbitMQContainer rabbit = new RabbitMQContainer("rabbitmq:3.13-management-alpine");
 
     @Container
-    static final GenericContainer<?> minio = new GenericContainer<>("docker.io/minio/minio:RELEASE.2025-07-23T15-54-02Z")
+    static final GenericContainer<?> minio = new GenericContainer<>("quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z")
         .withEnv("MINIO_ROOT_USER", MINIO_USER)
         .withEnv("MINIO_ROOT_PASSWORD", MINIO_PASSWORD)
         .withCommand("server", "/data", "--console-address", ":9001")
