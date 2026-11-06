@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
+import com.dockflow.dockflow.document.security.TenantIdentityService;
 
 /** Validates and queries only the paginated, read-only operational-log view. */
 @Service
@@ -19,16 +20,27 @@ public class ApplicationLogQueryService {
     private static final int DEFAULT_SIZE = 50;
     private final ApplicationLogRepository repository;
     private final int maxPageSize;
+    private final TenantIdentityService tenantIdentityService;
 
     public ApplicationLogQueryService(
         ApplicationLogRepository repository,
         @Value("${docflow.logs.max-page-size:100}") int maxPageSize
+    ) {
+        this(repository, maxPageSize, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ApplicationLogQueryService(
+        ApplicationLogRepository repository,
+        @Value("${docflow.logs.max-page-size:100}") int maxPageSize,
+        TenantIdentityService tenantIdentityService
     ) {
         if (maxPageSize < 1) {
             throw new IllegalArgumentException("max page size must be positive");
         }
         this.repository = repository;
         this.maxPageSize = maxPageSize;
+        this.tenantIdentityService = tenantIdentityService;
     }
 
     public ApplicationLogPageResponse find(
@@ -60,6 +72,10 @@ public class ApplicationLogQueryService {
 
         Specification<ApplicationLogEntity> specification = (root, query, criteriaBuilder) ->
             criteriaBuilder.conjunction();
+        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
+            UUID tenantId = tenantIdentityService.currentTenantId();
+            specification = specification.and((root, query, cb) -> cb.equal(root.get("tenantId"), tenantId));
+        }
         if (level != null) {
             specification = specification.and((root, query, cb) -> cb.equal(root.get("level"), level));
         }

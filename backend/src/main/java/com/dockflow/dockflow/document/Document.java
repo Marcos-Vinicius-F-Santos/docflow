@@ -9,6 +9,7 @@ import org.springframework.data.domain.Persistable;
 import java.util.UUID;
 import java.time.Instant;
 import java.time.Duration;
+import com.dockflow.dockflow.document.security.TenantIdentityService;
 
 @Entity 
 @Table(name = "documents")
@@ -20,6 +21,12 @@ public class Document implements Persistable<UUID> {
 
     @Id
     private UUID id;
+
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
+
+    @Column(name = "owner_subject", nullable = false, updatable = false, length = 255)
+    private String ownerSubject;
 
     @NotNull
     @Column(nullable = false)
@@ -95,6 +102,8 @@ public class Document implements Persistable<UUID> {
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
         this.status = DocumentStatus.PENDING;
+        this.tenantId = com.dockflow.dockflow.document.security.TenantIdentityService.BOOTSTRAP_TENANT_ID;
+        this.ownerSubject = "bootstrap";
 
     }
 
@@ -307,6 +316,27 @@ public class Document implements Persistable<UUID> {
     
     public UUID getId() {
         return id;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
+    }
+
+    public String getOwnerSubject() {
+        return ownerSubject;
+    }
+
+    public void assignTenant(UUID tenantId, String ownerSubject) {
+        if (this.tenantId != null
+            && !this.tenantId.equals(tenantId)
+            && !(this.newEntity && TenantIdentityService.BOOTSTRAP_TENANT_ID.equals(this.tenantId))) {
+            throw new IllegalStateException("The document tenant cannot be changed");
+        }
+        if (tenantId == null || ownerSubject == null || ownerSubject.isBlank()) {
+            throw new IllegalArgumentException("tenantId and ownerSubject are required");
+        }
+        this.tenantId = tenantId;
+        this.ownerSubject = ownerSubject;
     }
 
     public Instant getCreatedAt() {

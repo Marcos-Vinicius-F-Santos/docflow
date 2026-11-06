@@ -19,6 +19,10 @@ services:
         sync: false
       - key: NEON_AUTH_BASE_URL
         sync: false
+      - key: DOCFLOW_SECURITY_ENABLED
+        value: "true"
+      - key: DOCFLOW_BOOTSTRAP_AUTH_SUBJECT
+        sync: false
       - key: MINIO_ENDPOINT
         sync: false
       - key: MINIO_ACCESS_KEY

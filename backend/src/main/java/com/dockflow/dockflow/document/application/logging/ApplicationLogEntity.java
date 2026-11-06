@@ -19,6 +19,9 @@ import java.util.UUID;
 @Table(name = "application_logs")
 public class ApplicationLogEntity {
 
+    @Column(name = "tenant_id", nullable = false, updatable = false)
+    private UUID tenantId;
+
     @Id
     @Column(name = "event_id", nullable = false, updatable = false)
     private UUID eventId;
@@ -62,6 +65,14 @@ public class ApplicationLogEntity {
     }
 
     public ApplicationLogEntity(ApplicationLogEvent event) {
+        this(event, com.dockflow.dockflow.document.security.TenantIdentityService.BOOTSTRAP_TENANT_ID);
+    }
+
+    public ApplicationLogEntity(ApplicationLogEvent event, UUID tenantId) {
+        if (tenantId == null) {
+            throw new IllegalArgumentException("tenantId cannot be null");
+        }
+        this.tenantId = tenantId;
         this.eventId = event.eventId();
         this.schemaVersion = event.schemaVersion();
         this.occurredAt = event.occurredAt();
@@ -84,6 +95,10 @@ public class ApplicationLogEntity {
 
     public UUID getEventId() {
         return eventId;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
     }
 
     public int getSchemaVersion() {

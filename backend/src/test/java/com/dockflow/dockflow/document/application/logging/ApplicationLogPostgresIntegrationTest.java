@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.dockflow.dockflow.document.security.TenantIdentityService;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
-@Import({ApplicationLogPersistenceService.class, ApplicationLogQueryService.class})
+@Import({ApplicationLogPersistenceService.class, ApplicationLogQueryService.class, TenantIdentityService.class})
 class ApplicationLogPostgresIntegrationTest extends IntegrationTestBase {
 
     @Autowired

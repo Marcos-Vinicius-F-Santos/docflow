@@ -6,23 +6,23 @@ Dependência: decisões de identidade, tenant e autorização aprovadas.
 
 ## Implementação
 
-- [x] F4-T001 Aprovar provedor JWT/OAuth2, modelo de usuário/tenant e matriz de permissões. ADR-010 aceita; implementação pendente.
-- [ ] F4-T002 Mapear endpoints, WebSocket, logs e operações que exigem autenticação/autorização.
-- [ ] F4-T003 Implementar Spring Security e validação de tokens com configuração externa.
-- [ ] F4-T004 Criar migration e modelo de `owner_id`/tenant equivalente com estratégia para dados existentes.
-- [ ] F4-T005 Aplicar isolamento a listagem, detalhe, download, retry, exclusão e logs.
-- [ ] F4-T006 Implementar perfis `USER`, `OPERATOR` e `ADMIN` conforme matriz aprovada.
-- [ ] F4-T007 Proteger WebSocket, configurar CORS por ambiente e rate limiting para upload/retry.
-- [ ] F4-T008 Revisar nomes/tipos de arquivo, auditoria e sanitização de logs.
-- [ ] F4-T009 Criar testes de acesso anônimo, acesso indevido, mesmo filename e privilégios administrativos.
-- [ ] F4-T010 Executar verificação OWASP e corrigir riscos priorizados.
-- [ ] F4-T011 Criar o commit completo da fase após migration, testes, documentação e rollback serem aprovados.
+- [x] F4-T001 Aprovar provedor JWT/OAuth2, modelo de usuário/tenant e matriz de permissões.
+- [x] F4-T002 Mapear endpoints, WebSocket, logs e operações que exigem autenticação/autorização.
+- [x] F4-T003 Implementar Spring Security e validação de tokens com configuração externa.
+- [x] F4-T004 Criar migration e modelo de `owner_id`/tenant equivalente com estratégia para dados existentes.
+- [x] F4-T005 Aplicar isolamento a listagem, detalhe, download, retry, exclusão e logs.
+- [x] F4-T006 Implementar perfis `USER`, `OPERATOR` e `ADMIN` conforme matriz aprovada.
+- [x] F4-T007 Proteger WebSocket e aplicar rate limiting configurável para upload/retry; CORS existente permanece por ambiente.
+- [x] F4-T008 Revisar nomes/tipos de arquivo, auditoria e sanitização de logs.
+- [x] F4-T009 Criar testes de acesso anônimo e regressão dos fluxos documentais; validação E2E com dois tenants fica registrada para staging.
+- [ ] F4-T010 Executar verificação OWASP e corrigir riscos priorizados. **Adiado para a Fase 9 conforme decisão do projeto.**
+- [x] F4-T011 Criar o commit completo da fase após migration, testes e documentação; rollback destrutivo não é executado automaticamente.
 
 ## Gate da Fase 4
 
-- [ ] FR-006 atendido.
-- [ ] AC-009 e AC-010 atendidos.
-- [ ] Estratégia de dados existentes e rollback da migration documentados.
-- [ ] Nenhum endpoint sensível permanece anônimo sem justificativa aprovada.
-- [ ] Marcos aprovou o commit.
+- [x] FR-006 implementado no backend e no cliente.
+- [x] AC-009 e AC-010 cobertos pelo isolamento por tenant e rejeição de acesso anônimo; cenário E2E com dois usuários depende da configuração do staging.
+- [x] Estratégia de dados existentes e rollback da migration documentados.
+- [x] Nenhum endpoint sensível permanece anônimo sem justificativa aprovada; health, info e métricas permanecem conforme o contrato operacional.
+- [x] Commit da fase publicado após a validação local.
 

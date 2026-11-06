@@ -35,6 +35,8 @@ import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 import java.util.Map;
+import com.dockflow.dockflow.document.security.TenantIdentity;
+import com.dockflow.dockflow.document.security.TenantIdentityService;
 
 @Service
 public class DocumentService {
@@ -52,6 +54,7 @@ public class DocumentService {
     private Optional<ApplicationLogRecorder> operationalLogRecorder = Optional.empty();
     private ApplicationLogEventFactory operationalLogEventFactory = new ApplicationLogEventFactory();
     private Optional<DocumentMetrics> metrics = Optional.empty();
+    private TenantIdentityService tenantIdentityService = null;
 
     public DocumentService(DocumentRepository documentRepository) {
         this.documentRepository = documentRepository;
@@ -159,6 +162,29 @@ public class DocumentService {
         this.metrics = Optional.of(documentMetrics);
     }
 
+    @Autowired
+    void configureTenantIdentity(TenantIdentityService tenantIdentityService) {
+        this.tenantIdentityService = tenantIdentityService;
+    }
+
+    private TenantIdentity currentIdentity() {
+        if (tenantIdentityService == null) {
+            return new TenantIdentity(
+                TenantIdentityService.BOOTSTRAP_TENANT_ID,
+                "bootstrap",
+                TenantIdentity.Role.ADMIN
+            );
+        }
+        return tenantIdentityService.current();
+    }
+
+    private java.util.Optional<Document> findScoped(UUID id) {
+        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
+            return documentRepository.findByIdAndTenantId(id, currentIdentity().tenantId());
+        }
+        return documentRepository.findById(id);
+    }
+
     @Transactional
     public Document registerDocument(
         String originalFilename,
@@ -167,6 +193,8 @@ public class DocumentService {
     ) {
 
         Document document = new Document(originalFilename, contentType, sizeBytes);
+        TenantIdentity identity = currentIdentity();
+        document.assignTenant(identity.tenantId(), identity.subject());
         Document saved = documentRepository.save(document);
         record(
             ApplicationLogLevel.INFO,
@@ -215,6 +243,8 @@ public class DocumentService {
             validatedContent.contentType(),
             staged.sizeBytes()
         );
+        TenantIdentity identity = currentIdentity();
+        document.assignTenant(identity.tenantId(), identity.subject());
         Document saved = documentRepository.save(document);
         documentRepository.flush();
         record(
@@ -241,12 +271,15 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public Document findById(UUID id) {
-        return documentRepository.findById(id)
+        return findScoped(id)
                 .orElseThrow(() -> new DocumentNotFoundException(id));
     }
 
     @Transactional(readOnly = true)
     public List<Document> findAll() {
+        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
+            return documentRepository.findAllByTenantIdOrderByCreatedAtDesc(currentIdentity().tenantId());
+        }
         return documentRepository.findAll();
     }
 
@@ -261,8 +294,17 @@ public class DocumentService {
             throw new IllegalArgumentException("documentId cannot be null");
         }
 
-        Document document = documentRepository.findRetryCandidateForUpdate(id)
-            .orElseGet(() -> documentRepository.findById(id)
+        TenantIdentity identity = currentIdentity();
+        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
+            tenantIdentityService.requireOperator();
+        }
+        java.util.Optional<Document> candidate = tenantIdentityService != null && tenantIdentityService.isEnforced()
+            ? documentRepository.findRetryCandidateForUpdateInTenant(
+                id, identity.tenantId(), DocumentStatus.FAILED, Document.MAX_PROCESSING_FAILURES
+            )
+            : documentRepository.findRetryCandidateForUpdate(id);
+        Document document = candidate
+            .orElseGet(() -> findScoped(id)
                 .orElseThrow(() -> new DocumentNotFoundException(id)));
 
         if (document.getStatus() != DocumentStatus.FAILED
@@ -329,7 +371,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentDownload download(UUID id) {
-        Document document = documentRepository.findById(id)
+        Document document = findScoped(id)
             .orElseThrow(() -> new DocumentContentNotFoundException(id));
         if (document.getStatus() != DocumentStatus.COMPLETED) {
             throw new DocumentContentNotAvailableException(id, document.getStatus());
@@ -366,7 +408,13 @@ public class DocumentService {
 
     @Transactional
     public void delete(UUID id) {
-        Document document = documentRepository.findByIdForUpdate(id)
+        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
+            tenantIdentityService.requireOperator();
+        }
+        java.util.Optional<Document> scopedDocument = tenantIdentityService != null && tenantIdentityService.isEnforced()
+            ? documentRepository.findByIdForUpdateInTenant(id, currentIdentity().tenantId())
+            : documentRepository.findByIdForUpdate(id);
+        Document document = scopedDocument
             .orElseThrow(() -> new DocumentNotFoundException(id));
         String finalObjectKey = document.getObjectKey() == null || document.getObjectKey().isBlank()
             ? "documents/" + id

@@ -1,4 +1,5 @@
 import { inject, Injectable, InjectionToken } from '@angular/core';
+import { NeonAuthService } from '../auth/neon-auth.service';
 import { environment } from '../../environments/environment';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import {
@@ -26,6 +27,7 @@ const NOTIFICATION_TYPES: readonly DocumentNotificationType[] = [
 @Injectable({ providedIn: 'root' })
 export class DocumentNotificationService {
   private readonly socketFactory = inject(NOTIFICATION_SOCKET_FACTORY);
+  private readonly auth = inject(NeonAuthService);
   private readonly eventsSubject = new Subject<DocumentNotificationEvent>();
   private readonly stateSubject = new BehaviorSubject<NotificationConnectionState>('DISCONNECTED');
 
@@ -57,9 +59,10 @@ export class DocumentNotificationService {
     this.stateSubject.next('DISCONNECTED');
   }
 
-  private openSocket(reconnecting: boolean): void {
+  private async openSocket(reconnecting: boolean): Promise<void> {
     this.stateSubject.next(reconnecting ? 'RECONNECTING' : 'CONNECTING');
-    const socket = this.socketFactory(this.websocketUrl());
+    const token = await this.auth.getAccessToken();
+    const socket = this.socketFactory(this.websocketUrl(token));
     this.socket = socket;
 
     socket.onopen = () => {
@@ -110,14 +113,17 @@ export class DocumentNotificationService {
     }
   }
 
-  private websocketUrl(): string {
+  private websocketUrl(accessToken: string | null): string {
+    const appendToken = (url: string): string => accessToken
+      ? `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(accessToken)}`
+      : url;
     if (environment.apiBaseUrl) {
       const websocketBaseUrl = environment.apiBaseUrl.replace(/^http/, 'ws');
-      return `${websocketBaseUrl}${environment.notificationWebSocketPath}`;
+      return appendToken(`${websocketBaseUrl}${environment.notificationWebSocketPath}`);
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}${environment.notificationWebSocketPath}`;
+    return appendToken(`${protocol}//${window.location.host}${environment.notificationWebSocketPath}`);
   }
 
   private parseEvent(data: string): DocumentNotificationEvent | null {

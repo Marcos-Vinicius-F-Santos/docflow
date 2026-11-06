@@ -12,6 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
+    Optional<Document> findByIdAndTenantId(UUID documentId, UUID tenantId);
+
+    java.util.List<Document> findAllByTenantIdOrderByCreatedAtDesc(UUID tenantId);
+
     long countByStatus(DocumentStatus status);
 
     @Query("select count(d) from Document d where d.status = com.dockflow.dockflow.document.DocumentStatus.PROCESSING and d.reconciliationNextAttemptAt is not null")
@@ -37,6 +41,30 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
         """)
     Optional<Document> findRetryCandidateForUpdate(
         @Param("documentId") UUID documentId,
+        @Param("status") DocumentStatus status,
+        @Param("maxFailures") long maxFailures
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Document d where d.id = :documentId and d.tenantId = :tenantId")
+    Optional<Document> findByIdForUpdateInTenant(
+        @Param("documentId") UUID documentId,
+        @Param("tenantId") UUID tenantId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select d
+          from Document d
+         where d.id = :documentId
+           and d.tenantId = :tenantId
+           and d.status = :status
+           and d.failureCount < :maxFailures
+           and d.excluded = false
+        """)
+    Optional<Document> findRetryCandidateForUpdateInTenant(
+        @Param("documentId") UUID documentId,
+        @Param("tenantId") UUID tenantId,
         @Param("status") DocumentStatus status,
         @Param("maxFailures") long maxFailures
     );

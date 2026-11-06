@@ -99,8 +99,8 @@ class DocumentServiceIntegrationTest extends IntegrationTestBase {
         UUID legacyId = UUID.randomUUID();
         jdbcTemplate.update(
             "INSERT INTO documents "
-                + "(id, status, original_filename, content_type, size_bytes, created_at, updated_at) "
-                + "VALUES (?, 'PENDING', 'legacy.txt', 'text/plain', 1, now(), now())",
+                + "(id, tenant_id, owner_subject, status, original_filename, content_type, size_bytes, created_at, updated_at) "
+                + "VALUES (?, '00000000-0000-0000-0000-000000000001', 'bootstrap', 'PENDING', 'legacy.txt', 'text/plain', 1, now(), now())",
             legacyId
         );
 
@@ -127,31 +127,31 @@ class DocumentServiceIntegrationTest extends IntegrationTestBase {
     void shouldEnforceV6RetryAndDeletionInvariantsAtTheDatabaseBoundary() {
         assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
             "INSERT INTO documents "
-                + "(id, status, original_filename, content_type, size_bytes, "
+                + "(id, tenant_id, owner_subject, status, original_filename, content_type, size_bytes, "
                 + "failure_count, created_at, updated_at) "
-                + "VALUES (gen_random_uuid(), 'FAILED', 'negative.txt', 'text/plain', 1, -1, now(), now())"
+                + "VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'bootstrap', 'FAILED', 'negative.txt', 'text/plain', 1, -1, now(), now())"
         ));
 
         assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
             "INSERT INTO documents "
-                + "(id, status, original_filename, content_type, size_bytes, "
+                + "(id, tenant_id, owner_subject, status, original_filename, content_type, size_bytes, "
                 + "failure_count, is_excluded, created_at, updated_at) "
-                + "VALUES (gen_random_uuid(), 'FAILED', 'early.txt', 'text/plain', 1, 2, TRUE, now(), now())"
+                + "VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'bootstrap', 'FAILED', 'early.txt', 'text/plain', 1, 2, TRUE, now(), now())"
         ));
 
         assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
             "INSERT INTO documents "
-                + "(id, status, original_filename, content_type, size_bytes, "
+                + "(id, tenant_id, owner_subject, status, original_filename, content_type, size_bytes, "
                 + "failure_count, exclusion_scheduled_at, created_at, updated_at) "
-                + "VALUES (gen_random_uuid(), 'FAILED', 'unscheduled.txt', 'text/plain', 1, 1, now(), now(), now())"
+                + "VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'bootstrap', 'FAILED', 'unscheduled.txt', 'text/plain', 1, 1, now(), now(), now())"
         ));
     }
 
     @Test
     void shouldRejectCompletedDocumentWithoutObjectReference() {
         assertThrows(DataIntegrityViolationException.class, () -> jdbcTemplate.update(
-            "INSERT INTO documents (id, status, original_filename, content_type, size_bytes, created_at, updated_at) "
-                + "VALUES (gen_random_uuid(), 'COMPLETED', 'invalid.pdf', 'application/pdf', 1, now(), now())"));
+            "INSERT INTO documents (id, tenant_id, owner_subject, status, original_filename, content_type, size_bytes, created_at, updated_at) "
+                + "VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'bootstrap', 'COMPLETED', 'invalid.pdf', 'application/pdf', 1, now(), now())"));
     }
 
     @Test

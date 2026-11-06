@@ -1,7 +1,7 @@
 # Registro de Decisão — Identidade e multi-tenant
 
 Data: 2026-11-06  
-Status: Aceita — implementação não iniciada  
+Status: Aceita — implementação da Fase 4 concluída localmente
 Feature: `elevacao-operacional-docflow` / Fase 4
 
 ## Contexto
@@ -44,7 +44,8 @@ continuará protegido por Basic Auth.
 
 ## Fora do escopo desta aprovação
 
-Esta decisão não inicia a implementação da Fase 4. Ainda precisam ser executados a
-migration, a matriz detalhada de permissões, os testes de isolamento, o rate limiting,
-a revisão OWASP e o procedimento de rollback.
+Esta decisão registra a base arquitetural da Fase 4. A migration, a matriz detalhada de
+permissões, o isolamento local, o rate limiting e o procedimento de rollback foram
+implementados/documentados. A validação E2E remota e a revisão OWASP permanecem fora do
+fechamento local e seguem, respectivamente, para o staging e para a Fase 9.
 
