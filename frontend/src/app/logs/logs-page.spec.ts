@@ -228,11 +228,11 @@ describe('logs route', () => {
     expect(routes.find((route) => route.path === 'logs')).toMatchObject({ path: 'logs' });
   });
 
-  it('navigates to /logs without direct infrastructure access', async () => {
+  it('redirects unauthenticated navigation to /auth without direct infrastructure access', async () => {
     const router = TestBed.inject(Router);
 
     await router.navigateByUrl('/logs');
 
-    expect(router.url).toBe('/logs');
+    expect(router.url).toBe('/auth');
   });
 });
