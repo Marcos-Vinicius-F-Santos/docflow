@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { createAuthClient, createInternalNeonAuth } from '@neon/auth';
+import { createInternalNeonAuth } from '@neon/auth';
 import { environment } from '../../environments/environment';
 
 export interface NeonAuthSession {
@@ -12,12 +12,10 @@ export interface NeonAuthSession {
 /** Thin Angular boundary around the Neon Managed Auth client. */
 @Injectable({ providedIn: 'root' })
 export class NeonAuthService {
-  private readonly client = environment.neonAuthBaseUrl
-    ? createAuthClient(environment.neonAuthBaseUrl)
-    : null;
-  private readonly tokenClient = environment.neonAuthBaseUrl
+  private readonly authClient = environment.neonAuthBaseUrl
     ? createInternalNeonAuth(environment.neonAuthBaseUrl)
     : null;
+  private readonly client = this.authClient?.adapter ?? null;
   private readonly sessionState = signal<NeonAuthSession | null>(null);
 
   readonly session = this.sessionState.asReadonly();
@@ -39,10 +37,10 @@ export class NeonAuthService {
   }
 
   getAccessToken(): Promise<string | null> {
-    if (!this.tokenClient) {
+    if (!this.authClient) {
       return Promise.resolve(null);
     }
-    return this.tokenClient.getJWTToken();
+    return this.authClient.getJWTToken();
   }
 
   signOut() {
