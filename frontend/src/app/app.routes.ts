@@ -3,13 +3,13 @@ import { documentRoutes } from './document/document.routes';
 
 export const routes: Routes = [
   {
-    path: 'auth',
-    loadComponent: () => import('./auth/auth-page').then(({ AuthPage }) => AuthPage),
-  },
-  {
     path: '',
     pathMatch: 'full',
     loadComponent: () => import('./hub/hub-page').then(({ HubPage }) => HubPage),
+  },
+  {
+    path: 'auth',
+    loadComponent: () => import('./auth/auth-page').then(({ AuthPage }) => AuthPage),
   },
   {
     path: 'logs',
