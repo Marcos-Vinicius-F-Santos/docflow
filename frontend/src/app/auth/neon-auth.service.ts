@@ -25,6 +25,7 @@ export class NeonAuthService {
     : null;
   private readonly client = this.authClient?.adapter ?? null;
   private readonly sessionState = signal<NeonAuthSession | null>(null);
+  private sessionReady: Promise<void> | null = null;
 
   readonly session = this.sessionState.asReadonly();
 
@@ -44,14 +45,27 @@ export class NeonAuthService {
     return this.requireClient().getSession();
   }
 
+  async waitForSession(): Promise<void> {
+    if (!this.sessionReady) {
+      this.sessionReady = this.loadSession();
+    }
+    await this.sessionReady;
+  }
+
   async getAccessToken(): Promise<string | null> {
     if (!this.client) {
       return null;
     }
 
-    const tokenClient = this.client as typeof this.client & NeonAuthTokenClient;
-    const result = await tokenClient.token();
-    return result.data?.token ?? null;
+    await this.waitForSession();
+
+    try {
+      const tokenClient = this.client as typeof this.client & NeonAuthTokenClient;
+      const result = await tokenClient.token();
+      return result.data?.token ?? null;
+    } catch {
+      return null;
+    }
   }
 
   signOut() {
@@ -59,13 +73,8 @@ export class NeonAuthService {
   }
 
   async refreshSession(): Promise<void> {
-    if (!this.client) {
-      this.sessionState.set(null);
-      return;
-    }
-
-    const result = await this.client.getSession();
-    this.sessionState.set((result.data as NeonAuthSession | null) ?? null);
+    this.sessionReady = this.loadSession();
+    await this.sessionReady;
   }
 
   async clearSession(): Promise<void> {
@@ -80,5 +89,19 @@ export class NeonAuthService {
       throw new Error('Neon Auth is not configured for this environment');
     }
     return this.client;
+  }
+
+  private async loadSession(): Promise<void> {
+    if (!this.client) {
+      this.sessionState.set(null);
+      return;
+    }
+
+    try {
+      const result = await this.client.getSession();
+      this.sessionState.set((result.data as NeonAuthSession | null) ?? null);
+    } catch {
+      this.sessionState.set(null);
+    }
   }
 }

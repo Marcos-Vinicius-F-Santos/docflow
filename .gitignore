@@ -38,3 +38,6 @@ build/
 !.env.example
 .neon
 node_modules/
+
+# Local load-test binaries
+tools/k6/

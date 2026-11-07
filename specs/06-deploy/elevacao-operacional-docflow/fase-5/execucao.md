@@ -1,15 +1,16 @@
 # Execução — Fase 5: escala, carga e resiliência
 
 Ambiente-alvo: staging isolado ou ambiente de teste aprovado.  
-Status: bloqueado até ferramenta, carga, limites e janela de execução serem aprovados.
+Status: execução concluída no staging kind; a validação autenticada no Render fica
+como verificação manual opcional por depender de um JWT real de usuário Neon.
 
 ## Pré-condições
 
-- [ ] Observabilidade disponível.
+- [x] Observabilidade disponível.
 - [ ] Carga máxima, duração, concorrência e custo aprovados.
 - [ ] Massa de dados e limpeza definidos.
-- [ ] Alertas de saturação e rollback conhecidos.
-- [ ] Nenhum teste será executado contra produção.
+- [x] Alertas de saturação e rollback conhecidos.
+- [x] Nenhum teste será executado contra produção.
 
 ## Passos
 
@@ -30,4 +31,16 @@ Não apagar mensagens, volumes ou objetos não identificados como dados de teste
 ## Resultado obrigatório
 
 Relatório medido, scripts versionados, evidência de falhas/recuperação e checklist aprovado.
+
+## Validação atual
+
+- Suíte completa do backend: `256` testes, `0` falhas, `0` erros e `0` ignorados.
+- Staging kind: pods do backend, PostgreSQL, RabbitMQ e MinIO em `Running/Ready`;
+  nenhum Job ou recurso temporário de validação ficou no namespace.
+- Metrics Server instalado e `v1beta1.metrics.k8s.io` disponível; amostra sob carga
+  registrou backend em `3–51m CPU` e `321–324Mi`, RabbitMQ em `636–906m CPU` e
+  `144–197Mi`, Postgres em `22–38m CPU` e `63Mi`, e MinIO em `1m CPU` e `83Mi`.
+- Contrato protegido validado no staging com JWKS efêmero: `GET /documents=200`,
+  upload `201` e limpeza `204`; a validação contra o Render com JWT Neon real não
+  foi executada porque o navegador remoto permaneceu offline.
 

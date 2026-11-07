@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { DocumentNotificationService, NOTIFICATION_SOCKET_FACTORY } from './document-notification.service';
 import { notificationEventFixtures } from './testing/notification-event.fixtures';
 import { MockWebSocket, MockWebSocketFactory } from './testing/mock-web-socket';
+import { NeonAuthService } from '../auth/neon-auth.service';
 
 describe('DocumentNotificationService', () => {
   let factory: MockWebSocketFactory;
@@ -16,6 +17,10 @@ describe('DocumentNotificationService', () => {
         {
           provide: NOTIFICATION_SOCKET_FACTORY,
           useValue: () => factory.connect() as unknown as WebSocket,
+        },
+        {
+          provide: NeonAuthService,
+          useValue: { getAccessToken: vi.fn().mockResolvedValue('test-access-token') },
         },
       ],
     });

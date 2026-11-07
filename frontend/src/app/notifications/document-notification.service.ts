@@ -62,6 +62,11 @@ export class DocumentNotificationService {
   private async openSocket(reconnecting: boolean): Promise<void> {
     this.stateSubject.next(reconnecting ? 'RECONNECTING' : 'CONNECTING');
     const token = await this.auth.getAccessToken();
+    if (!token) {
+      this.scheduleReconnect();
+      return;
+    }
+
     const socket = this.socketFactory(this.websocketUrl(token));
     this.socket = socket;
 

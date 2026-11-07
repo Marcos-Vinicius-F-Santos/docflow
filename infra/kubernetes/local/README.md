@@ -12,7 +12,8 @@ backend em um namespace dedicado.
 - `infra/.env` preenchido a partir de `infra/.env.example`.
 
 Os valores de `infra/.env` não são incluídos nos manifests nem no Git. O script de
-deploy cria o Secret Kubernetes localmente a partir das chaves necessárias.
+deploy cria o Secret Kubernetes localmente a partir das chaves necessárias e instala
+o Metrics Server oficial para permitir `kubectl top` durante as validações.
 
 ## Execução
 
@@ -24,6 +25,17 @@ kubectl port-forward --namespace docflow-staging service/docflow-backend 8080:80
 ```
 
 Em outro terminal, o smoke test pode ser executado contra `http://localhost:8080`.
+As métricas temporais ficam disponíveis com:
+
+```powershell
+kubectl --context kind-docflow-staging top nodes
+kubectl --context kind-docflow-staging top pods --namespace docflow-staging
+```
+
+O manifesto oficial é instalado em cada execução para manter o ambiente local
+reprodutível. Como o kind usa certificados de kubelet de teste, o deploy aplica
+`--kubelet-insecure-tls` somente nesse cluster local; isso não deve ser copiado para
+um cluster de produção.
 
 Este ambiente é para validação local da Fase 1. Persistência, ingress, TLS, secrets
 gerenciados e publicação em um cluster remoto permanecem decisões de uma etapa posterior.

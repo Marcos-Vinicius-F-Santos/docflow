@@ -41,6 +41,13 @@ export function mapDocumentError(
       : operationalError();
   }
 
+  if (error.status === 401) {
+    return operationalError(
+      'Sua sessão não foi autenticada. Entre novamente para continuar.',
+      error.status,
+    );
+  }
+
   if (operation === 'list') {
     return operationalError(DOCUMENT_LIST_ERROR_MESSAGE, error.status);
   }

@@ -56,6 +56,7 @@ $backendImage = "docflow-backend:$ImageTag"
 $bootstrapImage = "docflow-bootstrap:$ImageTag"
 $minioImage = 'minio:docflow-local'
 $minioArchive = Join-Path $env:TEMP 'docflow-minio-kind.tar'
+$metricsServerManifest = 'https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.1/components.yaml'
 
 Push-Location $projectRoot
 try {
@@ -81,6 +82,12 @@ try {
 
     Write-Host 'Creating namespace...'
     Invoke-Kubectl @('apply', '--filename', 'infra/kubernetes/local/namespace.yaml')
+
+    Write-Host 'Installing Metrics Server for local resource validation...'
+    Invoke-Kubectl @('apply', '--filename', $metricsServerManifest)
+    $metricsPatch = '{"spec":{"template":{"spec":{"containers":[{"name":"metrics-server","args":["--cert-dir=/tmp","--secure-port=10250","--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname","--kubelet-use-node-status-port","--metric-resolution=15s","--kubelet-insecure-tls"]}]}}}}'
+    Invoke-Kubectl @('patch', 'deployment/metrics-server', '--namespace', 'kube-system', '--type', 'strategic', '--patch', $metricsPatch)
+    Invoke-Kubectl @('rollout', 'status', 'deployment/metrics-server', '--namespace', 'kube-system', '--timeout=180s')
 
     $secretArguments = @('create', 'secret', 'generic', 'docflow-secrets', '--namespace', $Namespace)
     foreach ($key in @(
