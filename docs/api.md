@@ -1,5 +1,27 @@
 # Contrato HTTP — Documentos
 
+## Versão e superfície implementada
+
+Este documento descreve a API REST implementada no backend atual. A versão pública
+continua `v1` por compatibilidade de implantação: as rotas existentes ainda são
+expostas sem prefixo e o versionamento é controlado pelo contrato de release. Uma
+mudança incompatível exige uma nova especificação e uma nova rota versionada.
+
+Rotas implementadas: `POST /documents`, `GET /documents`, `GET /documents/{id}`,
+`POST /documents/{id}/retry`, `GET /documents/{id}/content`,
+`GET /documents/{id}/preview`, `DELETE /documents/{id}`, `GET /logs` e o WebSocket
+`/ws/notifications`. Todas as rotas de negócio exigem Bearer token quando
+`DOCFLOW_SECURITY_ENABLED=true`.
+
+Health checks operacionais: `/actuator/health/liveness` verifica somente o processo;
+`/actuator/health/readiness` verifica o estado de prontidão, PostgreSQL e RabbitMQ.
+MinIO não faz parte do readiness porque sua indisponibilidade é tratada como falha
+transitória das operações de documento, sem retirar o processo do balanceamento.
+
+> Os contratos de operações em lote abaixo permanecem como fixtures planejadas da
+> feature e não são rotas expostas pelo backend atual. Não devem ser chamados em
+> staging ou produção até que controllers e testes correspondentes sejam entregues.
+
 ## Contrato lógico de notificações de ciclo de vida
 
 As notificações de documentos usam um contrato JSON versionado e provider-neutral.
@@ -195,7 +217,7 @@ Na coluna lateral do Hub, “Atividade” mostra no máximo os cinco documentos 
 e “Atenção” mostra no máximo os cinco documentos `FAILED` mais recentes. Ambas usam
 `updatedAt` decrescente, com fallback para `createdAt`.
 
-## `POST /documents/batch-download`
+## `POST /documents/batch-download` (planejado — não implementado)
 
 Solicita o download em lote dos documentos identificados no corpo:
 
@@ -226,7 +248,7 @@ Se nenhum item puder ser incluído, a operação responde `409 Conflict` em
 propriedade `skippedDocumentIds`. O backend nunca expõe `objectKey`, bucket ou
 credenciais.
 
-## `DELETE /documents`
+## `DELETE /documents` (planejado — não implementado)
 
 Solicita uma exclusão definitiva em lote. A confirmação explícita é responsabilidade do
 frontend e deve ocorrer antes desta requisição. O corpo contém os IDs:

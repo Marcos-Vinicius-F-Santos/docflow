@@ -1,0 +1,12 @@
+flowchart LR
+  Browser[Angular frontend] -->|Bearer JWT / REST| API[DocFlow backend]
+  Browser -->|JWT query param / WebSocket| WS[/ws/notifications]
+  API --> DB[(PostgreSQL metadata)]
+  API --> MQ[(RabbitMQ)]
+  API --> ST[(MinIO staging)]
+  MQ --> PROC[Async processor]
+  PROC --> OBJ[(MinIO final objects)]
+  PROC --> DB
+  API --> LOG[Operational logs]
+  LOG --> DB
+  API --> AUTH[Neon Auth JWKS]

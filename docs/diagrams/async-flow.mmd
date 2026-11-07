@@ -1,0 +1,20 @@
+sequenceDiagram
+  participant U as User
+  participant API as Backend API
+  participant DB as PostgreSQL
+  participant S as MinIO staging
+  participant R as RabbitMQ
+  participant F as MinIO final
+  participant N as Notification channel
+  U->>API: POST /documents (multipart file)
+  API->>S: Store staging/{documentId}
+  API->>DB: Persist PENDING
+  API->>R: Publish document request with confirm
+  API-->>U: 201 Created
+  R->>API: Consume request
+  API->>DB: Claim PROCESSING
+  API->>S: Read staging object
+  API->>F: Store final object
+  API->>DB: Persist COMPLETED or FAILED
+  API->>N: Publish lifecycle event
+  N-->>U: WebSocket event
