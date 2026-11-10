@@ -21,5 +21,6 @@ arquivos. O gate final de cada fase depende da revisão de Marcos.
 | 5 | [tarefas](fase-5/tarefas.md) | [checklist](../../05-verificacao/elevacao-operacional-docflow/fase-5/checklist.md) | [execucao](../../06-deploy/elevacao-operacional-docflow/fase-5/execucao.md) |
 | 6 | [tarefas](fase-6/tarefas.md) | [checklist](../../05-verificacao/elevacao-operacional-docflow/fase-6/checklist.md) | [execucao](../../06-deploy/elevacao-operacional-docflow/fase-6/execucao.md) |
 | 7 | [tarefas](fase-7/tarefas.md) | [checklist](../../05-verificacao/elevacao-operacional-docflow/fase-7/checklist.md) | [execucao](../../06-deploy/elevacao-operacional-docflow/fase-7/execucao.md) |
+| 7.5 | [tarefas](fase-7-5/tarefas.md) | [checklist](../../05-verificacao/elevacao-operacional-docflow/fase-7-5/checklist.md) | [execucao](../../06-deploy/elevacao-operacional-docflow/fase-7-5/execucao.md) |
 | 8 | [tarefas](fase-8/tarefas.md) | [checklist](../../05-verificacao/elevacao-operacional-docflow/fase-8/checklist.md) | [execucao](../../06-deploy/elevacao-operacional-docflow/fase-8/execucao.md) |
 

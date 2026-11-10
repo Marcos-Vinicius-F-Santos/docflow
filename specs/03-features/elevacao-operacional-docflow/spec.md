@@ -355,6 +355,14 @@ uma decisão arquitetural aprovada. C#, .NET, Oracle/PL-SQL, Kotlin, Next.js,
 Power Automate/Automation Anywhere e Rust/Nix permanecem candidatos a projetos
 separados.
 
+### Fase 7.5 — Validação manual do fluxo e correções
+
+Esta fase ocorre antes do pacote final de evidências. O responsável pelo projeto
+executará o fluxo publicado e o ambiente local, registrando evidências de cada etapa.
+Problemas encontrados deverão ser reproduzidos, corrigidos com escopo mínimo,
+testados e revalidados antes do encerramento da fase. A Fase 8 não deve consolidar
+afirmações sobre o produto enquanto esta validação estiver pendente.
+
 ### Fase 8 — Pacote final de evidências
 
 Esta fase consolida, sem inventar resultados, o README, URLs, badges, imagem, dashboard,
@@ -371,7 +379,7 @@ Estruturas incompletas ou código desabilitado não constituem entrega.
 ### BR-002 — Ordem incremental
 
 As fases devem ser implementadas na ordem Fase 0 → Fase 1 → Fase 2 → Fase 3 → Fase 4
-→ Fase 5 → Fase 6. As Fases 7 e 8 dependem de decisões e da maturidade do pacote
+→ Fase 5 → Fase 6. As Fases 7, 7.5 e 8 dependem de decisões e da maturidade do pacote
 principal.
 
 ### BR-003 — Evidência real
@@ -601,6 +609,7 @@ projeto:
 | 5 | `specs/04-plano/elevacao-operacional-docflow/fase-5/tarefas.md` | `specs/05-verificacao/elevacao-operacional-docflow/fase-5/checklist.md` | `specs/06-deploy/elevacao-operacional-docflow/fase-5/execucao.md` |
 | 6 | `specs/04-plano/elevacao-operacional-docflow/fase-6/tarefas.md` | `specs/05-verificacao/elevacao-operacional-docflow/fase-6/checklist.md` | `specs/06-deploy/elevacao-operacional-docflow/fase-6/execucao.md` |
 | 7 | `specs/04-plano/elevacao-operacional-docflow/fase-7/tarefas.md` | `specs/05-verificacao/elevacao-operacional-docflow/fase-7/checklist.md` | `specs/06-deploy/elevacao-operacional-docflow/fase-7/execucao.md` |
+| 7.5 | `specs/04-plano/elevacao-operacional-docflow/fase-7-5/tarefas.md` | `specs/05-verificacao/elevacao-operacional-docflow/fase-7-5/checklist.md` | `specs/06-deploy/elevacao-operacional-docflow/fase-7-5/execucao.md` |
 | 8 | `specs/04-plano/elevacao-operacional-docflow/fase-8/tarefas.md` | `specs/05-verificacao/elevacao-operacional-docflow/fase-8/checklist.md` | `specs/06-deploy/elevacao-operacional-docflow/fase-8/execucao.md` |
 
 O índice geral está em `specs/04-plano/elevacao-operacional-docflow/README.md`.
