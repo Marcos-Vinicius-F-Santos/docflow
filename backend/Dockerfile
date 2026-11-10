@@ -12,6 +12,7 @@ RUN chmod +x mvnw \
 FROM eclipse-temurin:21-jre-jammy
 
 RUN apt-get update \
+    && apt-get upgrade --no-install-recommends --yes \
     && apt-get install --no-install-recommends --yes curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /home/docflow docflow
