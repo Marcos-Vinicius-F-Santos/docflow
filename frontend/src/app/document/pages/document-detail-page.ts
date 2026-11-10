@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
+import { NeonAuthService } from '../../auth/neon-auth.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,7 +21,7 @@ import { EMPTY, Subject, Subscription, catchError } from 'rxjs';
 import { DocumentStatusPanel } from '../components/document-status-panel';
 import { DocumentApiService } from '../document-api.service';
 import { DocumentApiError, mapDocumentError } from '../document-error.mapper';
-import { DocumentResponse } from '../document.models';
+import { DocumentResponse, DocumentVisibility } from '../document.models';
 import { DocumentStatusPollerService } from '../document-status-poller.service';
 
 @Component({
@@ -41,6 +42,7 @@ export class DocumentDetailPage {
   private readonly destroyRef = inject(DestroyRef);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly documentApi = inject(DocumentApiService);
+  private readonly auth = inject(NeonAuthService);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly poller = inject(DocumentStatusPollerService);
   private readonly route = inject(ActivatedRoute);
@@ -57,6 +59,9 @@ export class DocumentDetailPage {
   retrying = false;
   deleting = false;
   previewUrl: SafeResourceUrl | null = null;
+  visibilitySaving = false;
+  visibilityError: string | null = null;
+  readonly session = this.auth.session;
 
   @ViewChild('confirmDeleteButton', { read: ElementRef })
   private confirmDeleteButton?: ElementRef<HTMLButtonElement>;
@@ -102,7 +107,35 @@ export class DocumentDetailPage {
   }
 
   canRetry(document: DocumentResponse): boolean {
-    return document.status === 'FAILED' && document.falhas < 3 && !document.isExcluded;
+    return !!this.session() && document.ownedByCurrentUser === true
+      && document.status === 'FAILED' && document.falhas < 3 && !document.isExcluded;
+  }
+
+  changeVisibility(visibility: DocumentVisibility): void {
+    const document = this.document;
+    if (!document || document.ownedByCurrentUser !== true || this.visibilitySaving || document.visibility === visibility) {
+      return;
+    }
+
+    this.visibilitySaving = true;
+    this.visibilityError = null;
+    this.changeDetector.markForCheck();
+
+    this.documentApi
+      .changeVisibility(document.id, visibility)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          this.document = updated;
+          this.visibilitySaving = false;
+          this.changeDetector.markForCheck();
+        },
+        error: (error: unknown) => {
+          this.visibilitySaving = false;
+          this.visibilityError = mapDocumentError(error).message;
+          this.changeDetector.markForCheck();
+        },
+      });
   }
 
   downloadDocument(): void {
@@ -165,7 +198,7 @@ export class DocumentDetailPage {
   }
 
   requestDelete(): void {
-    if (!this.document || this.hasActiveAction()) {
+    if (!this.document || !this.session() || this.document.ownedByCurrentUser !== true || this.hasActiveAction()) {
       return;
     }
 
@@ -182,7 +215,7 @@ export class DocumentDetailPage {
 
   confirmDelete(): void {
     const document = this.pendingDeletion;
-    if (!document || this.deleting) {
+    if (!document || !this.session() || document.ownedByCurrentUser !== true || this.deleting) {
       return;
     }
 
@@ -255,7 +288,7 @@ export class DocumentDetailPage {
         next: (document) => {
           this.document = document;
           this.previewUrl =
-            document.status === 'COMPLETED' && this.isPdf(document)
+            document.status === 'COMPLETED' && document.visibility === 'PUBLIC' && this.isPdf(document)
               ? this.sanitizer.bypassSecurityTrustResourceUrl(
                   this.documentApi.previewContentUrl(document.id),
                 )

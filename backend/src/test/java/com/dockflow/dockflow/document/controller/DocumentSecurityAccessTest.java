@@ -17,8 +17,11 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.web.OAuth2ResourceServerWebSecurityAutoConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 @WebMvcTest(DocumentController.class)
 @Import(SecurityConfiguration.class)
@@ -45,8 +48,10 @@ class DocumentSecurityAccessTest {
     private JwtDecoder jwtDecoder;
 
     @Test
-    void rejectsAnonymousDocumentAccessWhenSecurityIsEnabled() throws Exception {
+    void allowsAnonymousPublicDocumentListingWhenSecurityIsEnabled() throws Exception {
+        when(documentService.findAll()).thenReturn(List.of());
+
         mockMvc.perform(get("/documents"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isOk());
     }
 }

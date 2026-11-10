@@ -16,6 +16,35 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     java.util.List<Document> findAllByTenantIdOrderByCreatedAtDesc(UUID tenantId);
 
+    Optional<Document> findByIdAndVisibility(UUID documentId, DocumentVisibility visibility);
+
+    @Query("""
+        select d
+          from Document d
+         where d.id = :documentId
+           and (d.visibility = com.dockflow.dockflow.document.DocumentVisibility.PUBLIC
+                or d.ownerSubject = :ownerSubject)
+        """)
+    Optional<Document> findReadableById(
+        @Param("documentId") UUID documentId,
+        @Param("ownerSubject") String ownerSubject
+    );
+
+    java.util.List<Document> findAllByVisibilityOrderByCreatedAtDesc(
+        DocumentVisibility visibility
+    );
+
+    @Query("""
+        select d
+          from Document d
+         where d.visibility = com.dockflow.dockflow.document.DocumentVisibility.PUBLIC
+            or d.ownerSubject = :ownerSubject
+         order by d.createdAt desc
+        """)
+    java.util.List<Document> findReadableByOwnerSubjectOrderByCreatedAtDesc(
+        @Param("ownerSubject") String ownerSubject
+    );
+
     long countByStatus(DocumentStatus status);
 
     @Query("select count(d) from Document d where d.status = com.dockflow.dockflow.document.DocumentStatus.PROCESSING and d.reconciliationNextAttemptAt is not null")

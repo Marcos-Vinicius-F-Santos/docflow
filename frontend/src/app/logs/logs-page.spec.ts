@@ -214,7 +214,7 @@ describe('LogsPage', () => {
   });
 });
 
-describe('logs route', () => {
+describe('logs route removal', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
@@ -224,15 +224,15 @@ describe('logs route', () => {
     });
   });
 
-  it('registers the separate read-only route', () => {
-    expect(routes.find((route) => route.path === 'logs')).toMatchObject({ path: 'logs' });
+  it('does not register the operational logs page route', () => {
+    expect(routes.find((route) => route.path === 'logs')).toBeUndefined();
   });
 
-  it('redirects unauthenticated navigation to /auth without direct infrastructure access', async () => {
+  it('redirects legacy navigation to the Hub', async () => {
     const router = TestBed.inject(Router);
 
     await router.navigateByUrl('/logs');
 
-    expect(router.url).toBe('/auth');
+    expect(router.url).toBe('/');
   });
 });

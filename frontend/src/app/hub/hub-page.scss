@@ -145,6 +145,47 @@ h1 {
   background: #f8fafc;
 }
 
+.hub-auth-required {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hub-auth-required p:not(.eyebrow) {
+  margin: 0;
+  color: #486581;
+  line-height: 1.5;
+}
+
+.hub-auth-link {
+  width: fit-content;
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  background: #0b69a3;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.visibility-choice {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+  color: #243b53;
+}
+
+.visibility-choice legend {
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+.visibility-choice label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .drop-zone {
   display: grid;
   gap: 0.5rem;

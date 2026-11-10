@@ -5,13 +5,15 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  effect,
   inject,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { NeonAuthService } from '../auth/neon-auth.service';
 import { DocumentApiService } from '../document/document-api.service';
 import { DocumentApiError, mapDocumentError } from '../document/document-error.mapper';
 import { DocumentFileValidator } from '../document/document-file-validator';
-import { DocumentResponse } from '../document/document.models';
+import { DocumentResponse, DocumentVisibility } from '../document/document.models';
 import { DocumentNotificationEvent } from '../notifications/notification-event.models';
 import { NotificationConnectionState } from '../notifications/notification-event.models';
 import { NotificationSessionState } from '../notifications/notification-session-state.service';
@@ -27,6 +29,7 @@ export class HubPage {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly documentApi = inject(DocumentApiService);
+  private readonly auth = inject(NeonAuthService);
   private readonly notificationState = inject(NotificationSessionState);
   private readonly validator = new DocumentFileValidator();
   private hasEstablishedNotificationConnection = false;
@@ -35,6 +38,7 @@ export class HubPage {
   isLoading = true;
   listError: DocumentApiError | null = null;
   selectedFile: File | null = null;
+  visibility: DocumentVisibility = 'PRIVATE';
   validationError: string | null = null;
   uploadError: DocumentApiError | null = null;
   uploadProgress = 0;
@@ -43,6 +47,14 @@ export class HubPage {
   notificationBannerEvents: DocumentNotificationEvent[] = [];
   notificationToast: DocumentNotificationEvent | null = null;
   connectionState: NotificationConnectionState = 'DISCONNECTED';
+  readonly session = this.auth.session;
+  private readonly notificationSessionEffect = effect(() => {
+    if (this.session()) {
+      this.notificationState.start();
+    } else {
+      this.notificationState.stop();
+    }
+  });
   private notificationToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
@@ -62,7 +74,6 @@ export class HubPage {
     this.notificationState.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((event) => this.presentNotification(event));
-    this.notificationState.start();
   }
 
   loadDocuments(): void {
@@ -174,8 +185,12 @@ export class HubPage {
     }
   }
 
+  setVisibility(visibility: DocumentVisibility): void {
+    this.visibility = visibility;
+  }
+
   submit(): void {
-    if (!this.selectedFile || this.validationError || this.hasActiveAction()) {
+    if (!this.session() || !this.selectedFile || this.validationError || this.hasActiveAction()) {
       return;
     }
 
@@ -185,7 +200,7 @@ export class HubPage {
     this.changeDetector.markForCheck();
 
     this.documentApi
-      .upload(this.selectedFile)
+      .upload(this.selectedFile, this.visibility)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => {

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.Optional;
 
 /** Resolves the authenticated Neon subject and its application tenant role. */
 @Service
@@ -75,6 +76,20 @@ public class TenantIdentityService {
 
     public UUID currentTenantId() {
         return current().tenantId();
+    }
+
+    /** Returns the current identity without provisioning an anonymous visitor. */
+    public Optional<TenantIdentity> currentIfAuthenticated() {
+        if (!securityEnabled) {
+            return Optional.of(new TenantIdentity(BOOTSTRAP_TENANT_ID, BOOTSTRAP_SUBJECT, TenantIdentity.Role.ADMIN));
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+            || authentication.getPrincipal() instanceof String principal && "anonymousUser".equals(principal)) {
+            return Optional.empty();
+        }
+        return Optional.of(current());
     }
 
     public void requireOperator() {

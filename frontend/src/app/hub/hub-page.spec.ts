@@ -1,9 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import { HttpEventType, HttpResponse } from '@angular/common/http';
 import { of, Subject, throwError } from 'rxjs';
 import { DocumentApiService } from '../document/document-api.service';
 import { DocumentResponse } from '../document/document.models';
+import { NeonAuthService } from '../auth/neon-auth.service';
 import { DocumentNotificationEvent, NotificationConnectionState } from '../notifications/notification-event.models';
 import { NotificationSessionState } from '../notifications/notification-session-state.service';
 import { notificationEventFixtures } from '../notifications/testing/notification-event.fixtures';
@@ -20,6 +22,7 @@ describe('HubPage', () => {
     events$: Subject<DocumentNotificationEvent>;
     connectionState$: Subject<NotificationConnectionState>;
     start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
   };
 
   const documentResponse = (
@@ -49,10 +52,18 @@ describe('HubPage', () => {
       events$: new Subject<DocumentNotificationEvent>(),
       connectionState$: new Subject<NotificationConnectionState>(),
       start: vi.fn(),
+      stop: vi.fn(),
     };
     await TestBed.configureTestingModule({
       imports: [HubPage],
-      providers: [provideRouter(routes), { provide: DocumentApiService, useValue: documentApi }],
+      providers: [
+        provideRouter(routes),
+        { provide: DocumentApiService, useValue: documentApi },
+        {
+          provide: NeonAuthService,
+          useValue: { session: signal({ user: { email: 'user@example.com' } }) },
+        },
+      ],
     }).overrideProvider(NotificationSessionState, { useValue: notificationService }).compileComponents();
 
     fixture = TestBed.createComponent(HubPage);

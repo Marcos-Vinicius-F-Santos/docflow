@@ -33,6 +33,11 @@ public class Document implements Persistable<UUID> {
     @Enumerated(EnumType.STRING)
     private DocumentStatus status;
 
+    @NotNull
+    @Column(nullable = false, length = 16)
+    @Enumerated(EnumType.STRING)
+    private DocumentVisibility visibility;
+
     @NotBlank
     @Column(nullable = false)
     private String originalFilename;
@@ -102,6 +107,7 @@ public class Document implements Persistable<UUID> {
         this.contentType = contentType;
         this.sizeBytes = sizeBytes;
         this.status = DocumentStatus.PENDING;
+        this.visibility = DocumentVisibility.PRIVATE;
         this.tenantId = com.dockflow.dockflow.document.security.TenantIdentityService.BOOTSTRAP_TENANT_ID;
         this.ownerSubject = "bootstrap";
 
@@ -162,6 +168,17 @@ public class Document implements Persistable<UUID> {
 
     public DocumentStatus getStatus() {
         return status;
+    }
+
+    public DocumentVisibility getVisibility() {
+        return visibility;
+    }
+
+    public void changeVisibility(DocumentVisibility visibility) {
+        if (visibility == null) {
+            throw new IllegalArgumentException("visibility cannot be null");
+        }
+        this.visibility = visibility;
     }
 
     public String getObjectKey() {

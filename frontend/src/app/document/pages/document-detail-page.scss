@@ -132,6 +132,34 @@ code {
   overflow-wrap: anywhere;
 }
 
+.visibility-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.visibility-editor label {
+  font-weight: 700;
+}
+
+.visibility-editor select {
+  min-height: 2.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: 0.5rem;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+}
+
+.visibility-editor span {
+  color: var(--mat-sys-on-surface-variant);
+}
+
 .detail-error .detail-actions {
   justify-content: flex-start;
   margin-top: 1.25rem;

@@ -1,4 +1,5 @@
 export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+export type DocumentVisibility = 'PRIVATE' | 'PUBLIC';
 
 export interface DocumentResponse {
   id: string;
@@ -6,6 +7,8 @@ export interface DocumentResponse {
   contentType: string;
   sizeBytes: number;
   status: DocumentStatus;
+  visibility?: DocumentVisibility;
+  ownedByCurrentUser?: boolean;
   createdAt: string;
   updatedAt: string;
   falhas: number;

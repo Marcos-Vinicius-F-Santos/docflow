@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.dockflow.dockflow.document.DocumentStatus;
+import com.dockflow.dockflow.document.DocumentVisibility;
 
 public record DocumentResponse(
     
@@ -12,6 +13,8 @@ public record DocumentResponse(
     String contentType,
     long sizeBytes,
     DocumentStatus status,
+    DocumentVisibility visibility,
+    boolean ownedByCurrentUser,
     Instant createdAt,
     Instant updatedAt,
     long falhas,

@@ -51,6 +51,7 @@
 
   <div class="hub-layout">
     <div class="hub-main">
+      @if (session()) {
       <section class="hub-upload" aria-labelledby="hub-upload-title">
         <p class="eyebrow">Novo envio</p>
         <h2 id="hub-upload-title">Envie um documento</h2>
@@ -83,6 +84,18 @@
           <p class="selected-file">Arquivo selecionado: {{ selectedFile.name }}</p>
         }
 
+        <fieldset class="visibility-choice">
+          <legend>Visibilidade</legend>
+          <label>
+            <input type="radio" name="document-visibility" value="PRIVATE" [checked]="visibility === 'PRIVATE'" (change)="setVisibility('PRIVATE')" />
+            Privado (somente você)
+          </label>
+          <label>
+            <input type="radio" name="document-visibility" value="PUBLIC" [checked]="visibility === 'PUBLIC'" (change)="setVisibility('PUBLIC')" />
+            Público (qualquer pessoa)
+          </label>
+        </fieldset>
+
         @if (validationError) {
           <p class="feedback feedback-error" role="alert">{{ validationError }}</p>
         }
@@ -104,6 +117,14 @@
           </button>
         </div>
       </section>
+      } @else {
+      <section class="hub-upload hub-auth-required" aria-labelledby="hub-auth-required-title">
+        <p class="eyebrow">Acesso necessário</p>
+        <h2 id="hub-auth-required-title">Entre para enviar documentos</h2>
+        <p>Documentos públicos podem ser consultados sem login, mas o envio exige uma sessão autenticada.</p>
+        <a class="hub-auth-link" routerLink="/auth">Entrar ou criar conta</a>
+      </section>
+      }
 
       <section class="hub-document-list" aria-labelledby="hub-document-list-title">
         <div class="section-heading">

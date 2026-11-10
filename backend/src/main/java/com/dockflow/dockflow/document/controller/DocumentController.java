@@ -5,10 +5,12 @@ import org.springframework.http.ResponseEntity;
 
 import com.dockflow.dockflow.document.Document;
 import com.dockflow.dockflow.document.DocumentService;
+import com.dockflow.dockflow.document.DocumentVisibility;
 import com.dockflow.dockflow.document.application.DocumentContent;
 import com.dockflow.dockflow.document.application.DocumentDownload;
 import com.dockflow.dockflow.document.dto.DocumentMultipartRegistrationRequest;
 import com.dockflow.dockflow.document.dto.DocumentResponse;
+import com.dockflow.dockflow.document.dto.DocumentVisibilityUpdateRequest;
 import com.dockflow.dockflow.document.adapter.in.web.exception.DocumentContentErrorCode;
 import com.dockflow.dockflow.document.adapter.in.web.exception.DocumentContentValidationException;
 import com.dockflow.dockflow.document.mapper.DocumentMapper;
@@ -41,12 +43,13 @@ public class DocumentController {
     public ResponseEntity<DocumentResponse> registerDocument(
         @RequestPart(value = "file", required = false) MultipartFile file,
         @RequestPart(value = "metadata", required = false) String metadata,
+        @RequestPart(value = "visibility", required = false) String visibility,
         HttpServletRequest request
     ) {
         if (metadata != null) {
             throw new DocumentContentValidationException(
                 DocumentContentErrorCode.DOCUMENT_METADATA_NOT_ALLOWED,
-                "Only the file part is accepted"
+                "Only the file and visibility parts are accepted"
             );
         }
         rejectUnsupportedParts(request);
@@ -69,9 +72,24 @@ public class DocumentController {
             );
         }
 
-        Document document = documentService.registerDocument(content);
+        Document document;
+        if (visibility == null || visibility.isBlank()) {
+            document = documentService.registerDocument(content);
+        } else {
+            DocumentVisibility documentVisibility;
+            try {
+                documentVisibility = DocumentVisibility.from(visibility);
+            } catch (IllegalArgumentException exception) {
+                throw new DocumentContentValidationException(
+                    DocumentContentErrorCode.DOCUMENT_METADATA_NOT_ALLOWED,
+                    "Visibility must be PUBLIC or PRIVATE",
+                    "visibility"
+                );
+            }
+            document = documentService.registerDocument(content, documentVisibility);
+        }
 
-        DocumentResponse response = DocumentMapper.toResponse(document);
+        DocumentResponse response = toResponse(document);
 
         URI location = URI.create("/documents/" + document.getId());
 
@@ -88,20 +106,23 @@ public class DocumentController {
 
         try {
             int fileParts = 0;
+            int visibilityParts = 0;
             for (Part part : request.getParts()) {
                 if ("file".equals(part.getName())) {
                     fileParts++;
+                } else if ("visibility".equals(part.getName())) {
+                    visibilityParts++;
                 } else {
                     throw new DocumentContentValidationException(
                         DocumentContentErrorCode.DOCUMENT_METADATA_NOT_ALLOWED,
-                        "Only the file part is accepted"
+                        "Only the file and visibility parts are accepted"
                     );
                 }
             }
-            if (fileParts > 1) {
+            if (fileParts > 1 || visibilityParts > 1) {
                 throw new DocumentContentValidationException(
                     DocumentContentErrorCode.DOCUMENT_METADATA_NOT_ALLOWED,
-                    "Only one file part is accepted"
+                    "Only one file and one visibility part are accepted"
                 );
             }
         } catch (IOException | ServletException exception) {
@@ -116,20 +137,36 @@ public class DocumentController {
     @GetMapping("/{documentId}")
     public DocumentResponse findDocumentById(@PathVariable UUID documentId) {
         Document document = documentService.findById(documentId);
-        return DocumentMapper.toResponse(document);
+        return toResponse(document);
     }
 
     @PostMapping("/{documentId}/retry")
     public ResponseEntity<DocumentResponse> retryDocument(@PathVariable UUID documentId) {
         Document document = documentService.retry(documentId);
-        return ResponseEntity.accepted().body(DocumentMapper.toResponse(document));
+        return ResponseEntity.accepted().body(toResponse(document));
     }
 
     @GetMapping
     public List<DocumentResponse> findDocuments() {
         return documentService.findAll().stream()
-            .map(DocumentMapper::toResponse)
+            .map(this::toResponse)
             .toList();
+    }
+
+    @PatchMapping("/{documentId}/visibility")
+    public DocumentResponse changeVisibility(
+        @PathVariable UUID documentId,
+        @RequestBody DocumentVisibilityUpdateRequest request
+    ) {
+        if (request == null || request.visibility() == null) {
+            throw new DocumentContentValidationException(
+                DocumentContentErrorCode.DOCUMENT_METADATA_NOT_ALLOWED,
+                "Visibility must be PUBLIC or PRIVATE",
+                "visibility"
+            );
+        }
+        Document document = documentService.changeVisibility(documentId, request.visibility());
+        return toResponse(document);
     }
 
     @GetMapping("/{documentId}/content")
@@ -166,6 +203,10 @@ public class DocumentController {
     public ResponseEntity<Void> deleteDocument(@PathVariable UUID documentId) {
         documentService.delete(documentId);
         return ResponseEntity.noContent().build();
+    }
+
+    private DocumentResponse toResponse(Document document) {
+        return DocumentMapper.toResponse(document, documentService.canChangeVisibility(document));
     }
 
 

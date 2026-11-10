@@ -73,7 +73,31 @@
           <dt>Atualizado em</dt>
           <dd>{{ formatDate(document.updatedAt) }}</dd>
         </div>
+        <div>
+          <dt>Visibilidade</dt>
+          <dd>{{ document.visibility === 'PUBLIC' ? 'Público' : 'Privado' }}</dd>
+        </div>
       </dl>
+      @if (session() && document.ownedByCurrentUser) {
+        <div class="visibility-editor">
+          <label for="document-visibility">Alterar visibilidade</label>
+          <select
+            id="document-visibility"
+            [value]="document.visibility"
+            [disabled]="visibilitySaving"
+            (change)="changeVisibility($any($event.target).value)"
+          >
+            <option value="PRIVATE">Privado (somente você)</option>
+            <option value="PUBLIC">Público (qualquer pessoa)</option>
+          </select>
+          @if (visibilitySaving) {
+            <span>Salvando...</span>
+          }
+          @if (visibilityError) {
+            <p class="action-error" role="alert">{{ visibilityError }}</p>
+          }
+        </div>
+      }
     </section>
 
     <app-document-status-panel [document]="document" />
@@ -95,10 +119,12 @@
           {{ retrying ? 'Tentando...' : 'Tentar novamente' }}
         </button>
       }
-      <button mat-stroked-button color="warn" type="button" [disabled]="hasActiveAction()" (click)="requestDelete()">
-        <mat-icon aria-hidden="true">delete</mat-icon>
-        {{ deleting ? 'Excluindo...' : 'Excluir' }}
-      </button>
+      @if (session() && document.ownedByCurrentUser) {
+        <button mat-stroked-button color="warn" type="button" [disabled]="hasActiveAction()" (click)="requestDelete()">
+          <mat-icon aria-hidden="true">delete</mat-icon>
+          {{ deleting ? 'Excluindo...' : 'Excluir' }}
+        </button>
+      }
     </section>
 
     @if (document.status === 'FAILED') {

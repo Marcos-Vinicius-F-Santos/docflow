@@ -2,16 +2,19 @@ import { HttpClient, HttpEvent, HttpRequest, HttpResponse } from '@angular/commo
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { DocumentResponse } from './document.models';
+import { DocumentResponse, DocumentVisibility } from './document.models';
 
 @Injectable({ providedIn: 'root' })
 export class DocumentApiService {
   private readonly http = inject(HttpClient);
   private readonly documentsUrl = environment.documentApiBaseUrl;
 
-  upload(file: File): Observable<HttpEvent<DocumentResponse>> {
+  upload(file: File, visibility?: DocumentVisibility): Observable<HttpEvent<DocumentResponse>> {
     const formData = new FormData();
     formData.append('file', file, file.name);
+    if (visibility) {
+      formData.append('visibility', visibility);
+    }
 
     const request = new HttpRequest<FormData>('POST', this.documentsUrl, formData, {
       reportUploadProgress: true,
@@ -53,6 +56,17 @@ export class DocumentApiService {
       `${this.documentsUrl}/${encodedDocumentId}/retry`,
       null,
       { observe: 'response' },
+    );
+  }
+
+  changeVisibility(
+    documentId: string,
+    visibility: DocumentVisibility,
+  ): Observable<DocumentResponse> {
+    const encodedDocumentId = encodeURIComponent(documentId);
+    return this.http.patch<DocumentResponse>(
+      `${this.documentsUrl}/${encodedDocumentId}/visibility`,
+      { visibility },
     );
   }
 }

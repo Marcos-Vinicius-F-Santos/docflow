@@ -185,14 +185,43 @@ public class DocumentService {
         return documentRepository.findById(id);
     }
 
+    private java.util.Optional<Document> findReadable(UUID id) {
+        if (tenantIdentityService == null || !tenantIdentityService.isEnforced()) {
+            return documentRepository.findById(id);
+        }
+
+        return tenantIdentityService.currentIfAuthenticated()
+            .map(identity -> documentRepository.findReadableById(id, identity.subject()))
+            .orElseGet(() -> documentRepository.findByIdAndVisibility(id, DocumentVisibility.PUBLIC));
+    }
+
+    public boolean canChangeVisibility(Document document) {
+        return tenantIdentityService == null
+            || !tenantIdentityService.isEnforced()
+            || tenantIdentityService.currentIfAuthenticated()
+                .map(identity -> identity.subject().equals(document.getOwnerSubject()))
+                .orElse(false);
+    }
+
     @Transactional
     public Document registerDocument(
         String originalFilename,
         String contentType,
         long sizeBytes
     ) {
+        return registerDocument(originalFilename, contentType, sizeBytes, DocumentVisibility.PRIVATE);
+    }
+
+    @Transactional
+    public Document registerDocument(
+        String originalFilename,
+        String contentType,
+        long sizeBytes,
+        DocumentVisibility visibility
+    ) {
 
         Document document = new Document(originalFilename, contentType, sizeBytes);
+        document.changeVisibility(visibility);
         TenantIdentity identity = currentIdentity();
         document.assignTenant(identity.tenantId(), identity.subject());
         Document saved = documentRepository.save(document);
@@ -214,6 +243,11 @@ public class DocumentService {
      */
     @Transactional(noRollbackFor = DocumentPublicationException.class)
     public Document registerDocument(DocumentContent content) {
+        return registerDocument(content, DocumentVisibility.PRIVATE);
+    }
+
+    @Transactional(noRollbackFor = DocumentPublicationException.class)
+    public Document registerDocument(DocumentContent content, DocumentVisibility visibility) {
         DocumentStaging staging = documentStaging.orElseThrow(
             () -> new IllegalStateException("Document staging is not configured")
         );
@@ -243,6 +277,7 @@ public class DocumentService {
             validatedContent.contentType(),
             staged.sizeBytes()
         );
+        document.changeVisibility(visibility);
         TenantIdentity identity = currentIdentity();
         document.assignTenant(identity.tenantId(), identity.subject());
         Document saved = documentRepository.save(document);
@@ -271,16 +306,41 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public Document findById(UUID id) {
-        return findScoped(id)
+        return findReadable(id)
                 .orElseThrow(() -> new DocumentNotFoundException(id));
     }
 
     @Transactional(readOnly = true)
     public List<Document> findAll() {
-        if (tenantIdentityService != null && tenantIdentityService.isEnforced()) {
-            return documentRepository.findAllByTenantIdOrderByCreatedAtDesc(currentIdentity().tenantId());
+        if (tenantIdentityService == null || !tenantIdentityService.isEnforced()) {
+            return documentRepository.findAll();
         }
-        return documentRepository.findAll();
+
+        return tenantIdentityService.currentIfAuthenticated()
+            .map(identity -> documentRepository.findReadableByOwnerSubjectOrderByCreatedAtDesc(identity.subject()))
+            .orElseGet(() -> documentRepository.findAllByVisibilityOrderByCreatedAtDesc(DocumentVisibility.PUBLIC));
+    }
+
+    @Transactional
+    public Document changeVisibility(UUID id, DocumentVisibility visibility) {
+        if (visibility == null) {
+            throw new IllegalArgumentException("visibility cannot be null");
+        }
+
+        TenantIdentity identity = currentIdentity();
+        java.util.Optional<Document> candidate = tenantIdentityService != null && tenantIdentityService.isEnforced()
+            ? documentRepository.findByIdForUpdateInTenant(id, identity.tenantId())
+            : documentRepository.findByIdForUpdate(id);
+        Document document = candidate.orElseThrow(() -> new DocumentNotFoundException(id));
+
+        if (!identity.subject().equals(document.getOwnerSubject())) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Only the document owner can change its visibility"
+            );
+        }
+
+        document.changeVisibility(visibility);
+        return documentRepository.save(document);
     }
 
     /**
@@ -371,7 +431,7 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public DocumentDownload download(UUID id) {
-        Document document = findScoped(id)
+        Document document = findReadable(id)
             .orElseThrow(() -> new DocumentContentNotFoundException(id));
         if (document.getStatus() != DocumentStatus.COMPLETED) {
             throw new DocumentContentNotAvailableException(id, document.getStatus());
