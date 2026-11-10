@@ -36,6 +36,8 @@ describe('HubPage', () => {
     contentType: 'application/pdf',
     sizeBytes: 42,
     status,
+    visibility: 'PRIVATE',
+    ownedByCurrentUser: true,
     createdAt,
     updatedAt,
     falhas: status === 'FAILED' ? 1 : 0,
@@ -361,6 +363,7 @@ describe('HubPage', () => {
 
   it('keeps the upload dropbox keyboard reachable and blocks concurrent uploads', () => {
     fixture = TestBed.createComponent(HubPage);
+    fixture.detectChanges();
     const page = fixture.componentInstance;
     const dropZone = fixture.nativeElement.querySelector('.drop-zone') as HTMLElement;
 

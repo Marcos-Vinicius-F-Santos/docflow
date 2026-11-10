@@ -1,7 +1,9 @@
 import { HttpErrorResponse, HttpEvent, HttpEventType, HttpResponse } from '@angular/common/http';
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
+import { NeonAuthService } from '../auth/neon-auth.service';
 import { DocumentDetailPage } from './pages/document-detail-page';
 import { DocumentListPage } from './pages/document-list-page';
 import { DocumentUploadPage } from './pages/document-upload-page';
@@ -123,6 +125,8 @@ describe('DocumentDetailPage', () => {
     contentType: 'application/pdf',
     sizeBytes: 42,
     status,
+    visibility: 'PUBLIC',
+    ownedByCurrentUser: true,
     createdAt: '2026-09-19T20:00:00Z',
     updatedAt: '2026-09-19T20:00:00Z',
     falhas: status === 'FAILED' ? 1 : 0,
@@ -150,6 +154,10 @@ describe('DocumentDetailPage', () => {
         { provide: DocumentStatusPollerService, useValue: poller },
         { provide: DocumentApiService, useValue: documentApi },
         { provide: Router, useValue: router },
+        {
+          provide: NeonAuthService,
+          useValue: { session: signal({ user: { email: 'user@example.com' } }) },
+        },
       ],
     }).compileComponents();
 
