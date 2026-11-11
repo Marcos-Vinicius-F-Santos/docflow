@@ -145,7 +145,7 @@ jobs:
       - name: Build image
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
-        run: docker build --tag "${IMAGE_NAME}:${GITHUB_SHA}" --file backend/Dockerfile backend
+        run: docker build --provenance=false --tag "${IMAGE_NAME}:${GITHUB_SHA}" --file backend/Dockerfile backend
 
       - name: Export image for scan
         env:
