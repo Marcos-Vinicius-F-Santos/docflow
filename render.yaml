@@ -49,6 +49,10 @@ services:
     runtime: static
     buildCommand: npm ci --prefix frontend && node frontend/scripts/build-render-frontend.mjs && npm run build --prefix frontend
     staticPublishPath: frontend/dist/docflow-frontend/browser
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: DOCFLOW_API_BASE_URL
         sync: false
