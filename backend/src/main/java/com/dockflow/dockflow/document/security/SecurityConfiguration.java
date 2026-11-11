@@ -1,7 +1,5 @@
 package com.dockflow.dockflow.document.security;
 
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.proc.JWSAlgorithmFamilyJWSKeySelector;
 import com.nimbusds.jose.proc.JWSKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.jwk.source.RemoteJWKSet;
@@ -83,9 +81,10 @@ public class SecurityConfiguration {
         try {
             RemoteJWKSet<SecurityContext> remoteJwkSet = new RemoteJWKSet<>(new URL(jwksUrl));
             JWSKeySelector<SecurityContext> jwsKeySelector =
-                new JWSAlgorithmFamilyJWSKeySelector<>(JWSAlgorithm.Family.ED, remoteJwkSet);
+                new Ed25519JwsKeySelector(remoteJwkSet);
             DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
             jwtProcessor.setJWSKeySelector(jwsKeySelector);
+            jwtProcessor.setJWSVerifierFactory(new Ed25519JwsVerifierFactory());
             return new NimbusJwtDecoder(jwtProcessor);
         }
         catch (Exception exception) {
