@@ -73,6 +73,8 @@ public class SecurityConfiguration {
         if (jwksUrl == null || jwksUrl.isBlank()) {
             throw new IllegalStateException("NEON_AUTH_JWKS_URL is required when DOCFLOW_SECURITY_ENABLED=true");
         }
-        return NimbusJwtDecoder.withJwkSetUri(jwksUrl).build();
+        return NimbusJwtDecoder.withJwkSetUri(jwksUrl)
+            .discoverJwsAlgorithms()
+            .build();
     }
 }
