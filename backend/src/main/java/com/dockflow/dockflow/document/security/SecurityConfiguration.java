@@ -1,5 +1,9 @@
 package com.dockflow.dockflow.document.security;
 
+import com.nimbusds.jose.proc.JWSAlgorithmFamilyJWSKeySelector;
+import com.nimbusds.jose.proc.JWSKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +20,7 @@ import org.springframework.security.oauth2.server.resource.web.DefaultBearerToke
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 
+import java.net.URL;
 import java.util.List;
 
 @Configuration
@@ -73,8 +78,15 @@ public class SecurityConfiguration {
         if (jwksUrl == null || jwksUrl.isBlank()) {
             throw new IllegalStateException("NEON_AUTH_JWKS_URL is required when DOCFLOW_SECURITY_ENABLED=true");
         }
-        return NimbusJwtDecoder.withJwkSetUri(jwksUrl)
-            .discoverJwsAlgorithms()
-            .build();
+        try {
+            JWSKeySelector<SecurityContext> jwsKeySelector =
+                JWSAlgorithmFamilyJWSKeySelector.fromJWKSetURL(new URL(jwksUrl));
+            DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
+            jwtProcessor.setJWSKeySelector(jwsKeySelector);
+            return new NimbusJwtDecoder(jwtProcessor);
+        }
+        catch (Exception exception) {
+            throw new IllegalStateException("Unable to configure Neon Auth JWT decoder", exception);
+        }
     }
 }
