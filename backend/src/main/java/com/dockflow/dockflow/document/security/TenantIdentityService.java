@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
@@ -79,6 +80,7 @@ public class TenantIdentityService {
     }
 
     /** Returns the current identity without provisioning an anonymous visitor. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<TenantIdentity> currentIfAuthenticated() {
         if (!securityEnabled) {
             return Optional.of(new TenantIdentity(BOOTSTRAP_TENANT_ID, BOOTSTRAP_SUBJECT, TenantIdentity.Role.ADMIN));
